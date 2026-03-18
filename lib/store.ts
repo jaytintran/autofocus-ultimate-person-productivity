@@ -401,7 +401,7 @@ export async function resumeTimer(): Promise<AppState> {
 	return data;
 }
 
-export async function getTotalPageCount(pageSize: number): Promise<number> {
+export async function getTotalPageCount(): Promise<number> {
 	const supabase = createClient();
 	const { data, error } = await supabase
 		.from("tasks")

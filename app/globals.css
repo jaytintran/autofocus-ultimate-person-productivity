@@ -1,12 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-
 @custom-variant dark (&:is(.dark *));
 
 /* Default (Light) theme */
 :root {
 	--background: #fafaf8;
 	--foreground: #3a3a38;
+	--app-font-family: var(--font-geist-mono), "Geist Mono Fallback", monospace;
 	--card: #ffffff;
 	--card-foreground: #3a3a38;
 	--popover: #ffffff;
@@ -59,8 +59,8 @@
 
 @theme inline {
 	--font-size-base: 0.875rem; /* 14px instead of default 16px */
-	--font-sans: "Geist Mono", "Geist Mono Fallback", monospace;
-	--font-mono: "Geist Mono", "Geist Mono Fallback", monospace;
+	--font-sans: var(--app-font-family);
+	--font-mono: var(--app-font-family);
 	--color-af4-olive: var(--af4-olive);
 	--color-af4-olive-muted: var(--af4-olive-muted);
 	--color-af4-warn: var(--af4-warn);
@@ -103,12 +103,17 @@
 	--color-sidebar-ring: var(--sidebar-ring);
 }
 
+.font-rubik {
+	--app-font-family: var(--font-rubik-family), sans-serif;
+}
+
 @layer base {
 	* {
 		@apply border-border outline-ring/50;
 	}
 	body {
 		@apply bg-background text-foreground;
+		font-family: var(--app-font-family);
 		font-size: var(--font-size-base);
 	}
 }

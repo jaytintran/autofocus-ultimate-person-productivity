@@ -3,18 +3,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Pause, Play, Square, Check, RefreshCw, X } from "lucide-react";
 import type { Task, AppState } from "@/lib/types";
-import { reenterFromPanel } from "@/lib/store";
 
 interface TimerBarProps {
 	appState: AppState;
 	workingTask: Task | null;
-	onRefresh: () => Promise<void>;
 	onStartTimer: () => Promise<void>;
 	onPauseTimer: (sessionMs: number) => Promise<void>;
 	onResumeTimer: () => Promise<void>;
 	onStopTimer: (task: Task, sessionMs: number) => Promise<void>;
 	onCompleteTask: (task: Task, sessionMs: number) => Promise<void>;
 	onCancelTask: (task: Task, sessionMs: number) => Promise<void>;
+	onReenterTask: (task: Task) => Promise<void>;
 }
 
 // Format for active timer display: HH:MM:SS
@@ -46,13 +45,13 @@ export function formatTimeCompact(ms: number): string {
 export function TimerBar({
 	appState,
 	workingTask,
-	onRefresh,
 	onStartTimer,
 	onPauseTimer,
 	onResumeTimer,
 	onStopTimer,
 	onCompleteTask,
 	onCancelTask,
+	onReenterTask,
 }: TimerBarProps) {
 	const [sessionMs, setSessionMs] = useState(0);
 	const [isLoading, setIsLoading] = useState(false);
@@ -159,12 +158,11 @@ export function TimerBar({
 		if (isLoading || !workingTask) return;
 		setIsLoading(true);
 		try {
-			await reenterFromPanel(workingTask.id, workingTask.text);
-			await onRefresh();
+			await onReenterTask(workingTask);
 		} finally {
 			setIsLoading(false);
 		}
-	}, [workingTask, isLoading, onRefresh]);
+	}, [workingTask, isLoading, onReenterTask]);
 
 	const handleCancelTask = useCallback(async () => {
 		if (isLoading || !workingTask) return;

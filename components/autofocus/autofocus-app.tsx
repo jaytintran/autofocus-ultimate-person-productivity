@@ -12,11 +12,12 @@ import { TaskInput } from "./task-input";
 import { BacklogDump } from "./backlog-dump";
 import { AboutSection } from "./about-section";
 import {
+	addMultipleTasks,
+	addTask,
 	completeTask,
 	deleteTask,
 	getActiveTasks,
 	getAppState,
-	getNextPosition,
 	getCompletedTasks,
 	getTotalPageCount,
 	markTaskDone,
@@ -31,13 +32,24 @@ import {
 } from "@/lib/store";
 import type { Task, AppState } from "@/lib/types";
 
-const PAGE_SIZE = 30;
+const DEFAULT_TASK_CAPACITY = 12;
+const FALLBACK_TASK_ROW_HEIGHT = 48;
 
 interface OptimisticStateSnapshot {
 	activeTasks: Task[];
 	completedTasks: Task[];
 	appState: AppState;
 	totalPages: number;
+}
+
+interface PagedTaskLike {
+	page_number: number;
+	position: number;
+}
+
+interface TaskPlacement {
+	pageNumber: number;
+	position: number;
 }
 
 interface TaskReorderUpdate {
@@ -50,6 +62,49 @@ function getVisibleTotalPages(tasks: Task[]): number {
 	return tasks.length > 0
 		? Math.max(...tasks.map((task) => task.page_number))
 		: 1;
+}
+
+function getApproximateTaskCapacity(): number {
+	return 12;
+}
+
+function getNextTaskPlacement(
+	tasks: PagedTaskLike[],
+	pageCapacity: number,
+): TaskPlacement {
+	const lastPageNumber =
+		tasks.length > 0 ? Math.max(...tasks.map((task) => task.page_number)) : 1;
+	const lastPageTasks = tasks.filter(
+		(task) => task.page_number === lastPageNumber,
+	);
+	const normalizedCapacity = Math.max(1, pageCapacity);
+
+	if (lastPageTasks.length >= normalizedCapacity) {
+		return {
+			pageNumber: lastPageNumber + 1,
+			position: 0,
+		};
+	}
+
+	return {
+		pageNumber: lastPageNumber,
+		position:
+			lastPageTasks.length > 0
+				? Math.max(...lastPageTasks.map((task) => task.position)) + 1
+				: 0,
+	};
+}
+
+function appendProjectedTask(
+	tasks: PagedTaskLike[],
+	pageCapacity: number,
+): TaskPlacement {
+	const placement = getNextTaskPlacement(tasks, pageCapacity);
+	tasks.push({
+		page_number: placement.pageNumber,
+		position: placement.position,
+	});
+	return placement;
 }
 
 function getCurrentSessionMs(appState: AppState, nowMs: number): number {
@@ -127,6 +182,7 @@ export function AutofocusApp() {
 	const [currentPage, setCurrentPage] = useState(1);
 	const [optimisticState, setOptimisticState] =
 		useState<OptimisticStateSnapshot | null>(null);
+	const [visibleTaskCapacity, setVisibleTaskCapacity] = useState(12);
 
 	// Fetch active tasks
 	const { data: activeTasks = [], mutate: mutateActive } = useSWR<Task[]>(
@@ -151,8 +207,8 @@ export function AutofocusApp() {
 
 	// Calculate total pages
 	const { data: totalPages = 1, mutate: mutateTotalPages } = useSWR<number>(
-		["total-pages", PAGE_SIZE],
-		() => getTotalPageCount(PAGE_SIZE),
+		"total-pages",
+		getTotalPageCount,
 		{ refreshInterval: 0 },
 	);
 
@@ -200,6 +256,60 @@ export function AutofocusApp() {
 			}
 		},
 		[refreshAll],
+	);
+
+	const handleVisibleTaskCapacityChange = useCallback((capacity: number) => {
+		setVisibleTaskCapacity((currentCapacity) =>
+			currentCapacity === capacity ? currentCapacity : capacity,
+		);
+	}, []);
+
+	const handleAddTask = useCallback(
+		async (text: string) => {
+			const trimmedText = text.trim();
+			if (!trimmedText) return;
+
+			const placement = getNextTaskPlacement(
+				displayedActiveTasks,
+				visibleTaskCapacity,
+			);
+
+			await addTask(trimmedText, placement.pageNumber, placement.position);
+			await refreshAll();
+		},
+		[displayedActiveTasks, refreshAll, visibleTaskCapacity],
+	);
+
+	const handleAddTasks = useCallback(
+		async (taskTexts: string[]) => {
+			const trimmedTaskTexts = taskTexts
+				.map((taskText) => taskText.trim())
+				.filter((taskText) => taskText.length > 0);
+
+			if (trimmedTaskTexts.length === 0) return;
+
+			const projectedTasks = displayedActiveTasks.map((task) => ({
+				page_number: task.page_number,
+				position: task.position,
+			}));
+
+			const tasksToAdd = trimmedTaskTexts.map((taskText) => {
+				const placement = appendProjectedTask(
+					projectedTasks,
+					visibleTaskCapacity,
+				);
+
+				return {
+					text: taskText,
+					pageNumber: placement.pageNumber,
+					position: placement.position,
+				};
+			});
+
+			await addMultipleTasks(tasksToAdd);
+			await refreshAll();
+		},
+		[displayedActiveTasks, refreshAll, visibleTaskCapacity],
 	);
 
 	const handleStartTask = useCallback(
@@ -352,6 +462,29 @@ export function AutofocusApp() {
 			displayedCompletedTasks,
 			runOptimisticUpdate,
 		],
+	);
+
+	const handleReenterTask = useCallback(
+		async (task: Task) => {
+			const remainingActiveTasks = displayedActiveTasks.filter(
+				(activeTask) => activeTask.id !== task.id,
+			);
+			const placement = getNextTaskPlacement(
+				remainingActiveTasks,
+				visibleTaskCapacity,
+			);
+
+			await reenterTask(
+				task.id,
+				task.text,
+				placement.pageNumber,
+				placement.position,
+				task.total_time_ms,
+			);
+			await markTaskDone(task.id, task.total_time_ms);
+			await refreshAll();
+		},
+		[displayedActiveTasks, refreshAll, visibleTaskCapacity],
 	);
 
 	const handleRunTimer = useCallback(async () => {
@@ -556,6 +689,81 @@ export function AutofocusApp() {
 		],
 	);
 
+	const handlePanelReenterTask = useCallback(
+		async (task: Task) => {
+			if (!displayedAppState) return;
+
+			const now = new Date().toISOString();
+			const remainingActiveTasks = displayedActiveTasks.filter(
+				(activeTask) => activeTask.id !== task.id,
+			);
+			const placement = getNextTaskPlacement(
+				remainingActiveTasks,
+				visibleTaskCapacity,
+			);
+
+			const reenteredTask: Task = {
+				...task,
+				id: crypto.randomUUID(),
+				page_number: placement.pageNumber,
+				position: placement.position,
+				status: "active",
+				re_entered_from: task.id,
+				added_at: now,
+				completed_at: null,
+				updated_at: now,
+			};
+
+			const completedTask: Task = {
+				...task,
+				status: "completed",
+				completed_at: now,
+				updated_at: now,
+			};
+
+			const optimisticActiveTasks = [
+				...remainingActiveTasks,
+				reenteredTask,
+			].sort(
+				(a, b) => a.page_number - b.page_number || a.position - b.position,
+			);
+
+			await runOptimisticUpdate(
+				{
+					activeTasks: optimisticActiveTasks,
+					completedTasks: [completedTask, ...displayedCompletedTasks],
+					appState: {
+						...displayedAppState,
+						working_on_task_id: null,
+						timer_state: "idle",
+						current_session_ms: 0,
+						session_start_time: null,
+						updated_at: now,
+					},
+					totalPages: getVisibleTotalPages(optimisticActiveTasks),
+				},
+				async () => {
+					await reenterTask(
+						task.id,
+						task.text,
+						placement.pageNumber,
+						placement.position,
+						task.total_time_ms,
+					);
+					await markTaskDone(task.id, task.total_time_ms);
+					await stopWorkingOnTask();
+				},
+			);
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			runOptimisticUpdate,
+			visibleTaskCapacity,
+		],
+	);
+
 	const handleSwitchTask = useCallback(
 		async (newTask: Task, action: "complete" | "reenter") => {
 			if (!displayedAppState?.working_on_task_id) return;
@@ -611,17 +819,19 @@ export function AutofocusApp() {
 				);
 			} else {
 				// Re-enter
-				const maxPage = Math.max(
-					...displayedActiveTasks.map((t) => t.page_number),
-					1,
+				const remainingActiveTasks = displayedActiveTasks.filter(
+					(t) => t.id !== workingTask.id,
 				);
-				const position = await getNextPosition(maxPage);
+				const placement = getNextTaskPlacement(
+					remainingActiveTasks,
+					visibleTaskCapacity,
+				);
 
 				const reenteredTask: Task = {
 					...workingTask,
 					id: crypto.randomUUID(),
-					page_number: maxPage,
-					position,
+					page_number: placement.pageNumber,
+					position: placement.position,
 					status: "active",
 					total_time_ms: totalTime,
 					re_entered_from: workingTask.id,
@@ -669,8 +879,8 @@ export function AutofocusApp() {
 						await reenterTask(
 							workingTask.id,
 							workingTask.text,
-							maxPage,
-							position,
+							placement.pageNumber,
+							placement.position,
 							totalTime,
 						);
 						await markTaskDone(workingTask.id, totalTime);
@@ -684,6 +894,7 @@ export function AutofocusApp() {
 			displayedAppState,
 			displayedCompletedTasks,
 			runOptimisticUpdate,
+			visibleTaskCapacity,
 		],
 	);
 
@@ -701,6 +912,17 @@ export function AutofocusApp() {
 		}
 	}, [currentPage, displayedTotalPages]);
 
+	// Keep a fallback viewport estimate until the task list reports exact capacity.
+	useEffect(() => {
+		const handleResize = () => {
+			setVisibleTaskCapacity(12);
+		};
+
+		handleResize();
+		window.addEventListener("resize", handleResize);
+		return () => window.removeEventListener("resize", handleResize);
+	}, []);
+
 	if (!displayedAppState) {
 		return (
 			<div className="min-h-screen bg-background flex items-center justify-center">
@@ -710,19 +932,19 @@ export function AutofocusApp() {
 	}
 
 	return (
-		<div className="min-h-screen bg-background text-foreground flex flex-col">
+		<div className="h-screen overflow-hidden bg-background text-foreground flex flex-col">
 			<Header />
 
 			<TimerBar
 				appState={displayedAppState}
 				workingTask={workingTask}
-				onRefresh={refreshAll}
 				onStartTimer={handleRunTimer}
 				onPauseTimer={handlePauseTimer}
 				onResumeTimer={handleRunTimer}
 				onStopTimer={handleStopTimer}
 				onCompleteTask={handleCompleteWorkingTask}
 				onCancelTask={handleCancelWorkingTask}
+				onReenterTask={handlePanelReenterTask}
 			/>
 
 			<ViewTabs activeView={activeView} onViewChange={setActiveView} />
@@ -742,12 +964,13 @@ export function AutofocusApp() {
 						allTasks={displayedActiveTasks}
 						workingTaskId={displayedAppState.working_on_task_id}
 						onRefresh={refreshAll}
-						pageSize={PAGE_SIZE}
 						onStartTask={handleStartTask}
 						onDoneTask={handleDoneTask}
 						onDeleteTask={handleDeleteTask}
+						onReenterTask={handleReenterTask}
 						onReorderTasks={handleReorderTasks}
 						onSwitchTask={handleSwitchTask}
+						onVisibleCapacityChange={handleVisibleTaskCapacityChange}
 					/>
 				) : (
 					<CompletedList
@@ -760,8 +983,8 @@ export function AutofocusApp() {
 
 			{activeView === "tasks" && (
 				<>
-					<TaskInput pageSize={PAGE_SIZE} onTaskAdded={refreshAll} />
-					<BacklogDump pageSize={PAGE_SIZE} onTasksAdded={refreshAll} />
+					<TaskInput onAddTask={handleAddTask} />
+					<BacklogDump onAddTasks={handleAddTasks} />
 				</>
 			)}
 

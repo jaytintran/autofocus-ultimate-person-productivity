@@ -37,5 +37,6 @@ CREATE INDEX IF NOT EXISTS idx_tasks_added_at ON tasks(added_at);
 
 -- Insert default app state if not exists
 INSERT INTO app_state (id, current_page, page_size, last_pass_had_no_action, timer_state, current_session_ms)
-VALUES ('00000000-0000-0000-0000-000000000001', 1, 30, FALSE, 'idle', 0)
+VALUES ('00000000-0000-0000-0000-000000000001', 1, 12, FALSE, 'idle', 0)
 ON CONFLICT (id) DO NOTHING;
+

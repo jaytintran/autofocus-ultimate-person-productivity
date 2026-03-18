@@ -3,16 +3,7 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { GripVertical, Play, Check, RefreshCw, Trash2 } from "lucide-react";
 import type { Task } from "@/lib/types";
-import {
-	startTask,
-	deleteTask,
-	reenterTask,
-	markTaskDone,
-	updateTask,
-	reorderTasks,
-	getNextPosition,
-	getAppState,
-} from "@/lib/store";
+import { updateTask } from "@/lib/store";
 import { formatTimeCompact } from "./timer-bar";
 import {
 	Dialog,
@@ -26,10 +17,10 @@ interface TaskListProps {
 	allTasks: Task[]; // All active tasks for cross-page reordering
 	workingTaskId: string | null;
 	onRefresh: () => void;
-	pageSize: number;
-	onStartTask: (taskId: string) => void;
-	onDoneTask: (taskId: string) => void;
-	onDeleteTask: (taskId: string) => void;
+	onStartTask: (task: Task) => Promise<void>;
+	onDoneTask: (task: Task) => Promise<void>;
+	onDeleteTask: (taskId: string) => Promise<void>;
+	onReenterTask: (task: Task) => Promise<void>;
 	onReorderTasks: (
 		draggedTaskId: string,
 		dropTargetId: string,
@@ -38,7 +29,10 @@ interface TaskListProps {
 		newTask: Task,
 		action: "complete" | "reenter",
 	) => Promise<void>;
+	onVisibleCapacityChange?: (capacity: number) => void;
 }
+
+const FALLBACK_TASK_ROW_HEIGHT = 48;
 
 interface TaskRowProps {
 	task: Task;
@@ -91,9 +85,51 @@ function TaskRow({
 	const [modalEditText, setModalEditText] = useState(task.text);
 	const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
 	const [pendingTask, setPendingTask] = useState<Task | null>(null);
+	const [longPressActive, setLongPressActive] = useState(false);
+	const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
 	const reenterButtonRef = useRef<HTMLButtonElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const spanRef = useRef<HTMLSpanElement>(null);
+
+	const handleTouchStartWithDelay = (e: React.TouchEvent) => {
+		if (isWorking || disabled) return;
+
+		longPressTimerRef.current = setTimeout(() => {
+			setLongPressActive(true);
+			onTouchStart(e, task);
+		}, 1000);
+	};
+
+	const handleTouchMoveWithDelay = (e: React.TouchEvent) => {
+		if (!longPressActive) {
+			// Cancel long press if user moves before 1 second
+			if (longPressTimerRef.current) {
+				clearTimeout(longPressTimerRef.current);
+				longPressTimerRef.current = null;
+			}
+			return;
+		}
+		onTouchMove(e);
+	};
+
+	const handleTouchEndWithDelay = () => {
+		if (longPressTimerRef.current) {
+			clearTimeout(longPressTimerRef.current);
+			longPressTimerRef.current = null;
+		}
+		if (longPressActive) {
+			setLongPressActive(false);
+			onTouchEnd();
+		}
+	};
+
+	useEffect(() => {
+		return () => {
+			if (longPressTimerRef.current) {
+				clearTimeout(longPressTimerRef.current);
+			}
+		};
+	}, []);
 
 	useEffect(() => {
 		if (isEditing && inputRef.current) {
@@ -197,14 +233,14 @@ function TaskRow({
 				onDragStart={(e) => onDragStart(e, task)}
 				onDragOver={(e) => onDragOver(e, task)}
 				onDragEnd={onDragEnd}
-				onTouchStart={(e) => onTouchStart(e, task)}
-				onTouchMove={onTouchMove}
-				onTouchEnd={onTouchEnd}
+				onTouchStart={handleTouchStartWithDelay}
+				onTouchMove={handleTouchMoveWithDelay}
+				onTouchEnd={handleTouchEndWithDelay}
 				className={`
 					group px-4 py-2.5 flex items-center gap-2
 					touch-none
 					${isWorking ? "bg-[#8b9a6b]/15 border-l-2 border-[#8b9a6b]" : ""}
-					${isDragging ? "opacity-50 bg-accent" : ""}
+					${isDragging || longPressActive ? "opacity-50 bg-accent" : ""}
 					${isDropTarget ? "border-t-2 border-[#8b9a6b]" : ""}
 					transition-colors
 				`}
@@ -407,33 +443,75 @@ export function TaskList({
 	allTasks,
 	workingTaskId,
 	onRefresh,
-	pageSize,
 	onStartTask,
 	onDoneTask,
 	onDeleteTask,
+	onReenterTask,
 	onReorderTasks,
 	onSwitchTask,
+	onVisibleCapacityChange,
 }: TaskListProps) {
 	const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 	const [draggedTask, setDraggedTask] = useState<Task | null>(null);
 	const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 	const [touchStartY, setTouchStartY] = useState<number | null>(null);
 	const [touchCurrentY, setTouchCurrentY] = useState<number | null>(null);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const listRef = useRef<HTMLUListElement>(null);
+	const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 	const workingTask = allTasks.find((t) => t.id === workingTaskId) || null;
+
+	useEffect(() => {
+		if (!onVisibleCapacityChange) return;
+
+		const calculateVisibleCapacity = () => {
+			const container = containerRef.current;
+			if (!container) return;
+
+			const firstTaskRow =
+				listRef.current?.querySelector<HTMLLIElement>("li[data-task-id]");
+			const rowHeight =
+				firstTaskRow?.getBoundingClientRect().height ||
+				FALLBACK_TASK_ROW_HEIGHT;
+			const capacity = Math.max(
+				1,
+				Math.floor(container.clientHeight / Math.max(rowHeight, 1)),
+			);
+
+			onVisibleCapacityChange(capacity);
+		};
+
+		calculateVisibleCapacity();
+
+		if (typeof ResizeObserver === "undefined") {
+			return;
+		}
+
+		const observer = new ResizeObserver(calculateVisibleCapacity);
+		if (containerRef.current) {
+			observer.observe(containerRef.current);
+		}
+
+		const firstTaskRow = listRef.current?.querySelector("li[data-task-id]");
+		if (firstTaskRow) {
+			observer.observe(firstTaskRow);
+		}
+
+		return () => observer.disconnect();
+	}, [tasks, onVisibleCapacityChange]);
 
 	const handleStart = useCallback(
 		async (task: Task) => {
 			if (loadingTaskId) return;
 			setLoadingTaskId(task.id);
 			try {
-				await startTask(task.id);
-				onRefresh();
+				await onStartTask(task);
 			} finally {
 				setLoadingTaskId(null);
 			}
 		},
-		[loadingTaskId, onRefresh],
+		[loadingTaskId, onStartTask],
 	);
 
 	const handleDone = useCallback(
@@ -441,13 +519,12 @@ export function TaskList({
 			if (loadingTaskId) return;
 			setLoadingTaskId(task.id);
 			try {
-				await markTaskDone(task.id, task.total_time_ms);
-				onRefresh();
+				await onDoneTask(task);
 			} finally {
 				setLoadingTaskId(null);
 			}
 		},
-		[loadingTaskId, onRefresh],
+		[loadingTaskId, onDoneTask],
 	);
 
 	const handleReenter = useCallback(
@@ -455,17 +532,12 @@ export function TaskList({
 			if (loadingTaskId) return;
 			setLoadingTaskId(task.id);
 			try {
-				const maxPage = Math.max(...allTasks.map((t) => t.page_number), 1);
-				const position = await getNextPosition(maxPage);
-				await reenterTask(task.id, task.text, maxPage, position);
-				// Mark original as completed
-				await markTaskDone(task.id, task.total_time_ms);
-				onRefresh();
+				await onReenterTask(task);
 			} finally {
 				setLoadingTaskId(null);
 			}
 		},
-		[loadingTaskId, allTasks, onRefresh],
+		[loadingTaskId, onReenterTask],
 	);
 
 	const handleDelete = useCallback(
@@ -473,13 +545,12 @@ export function TaskList({
 			if (loadingTaskId) return;
 			setLoadingTaskId(taskId);
 			try {
-				await deleteTask(taskId);
-				onRefresh();
+				await onDeleteTask(taskId);
 			} finally {
 				setLoadingTaskId(null);
 			}
 		},
-		[loadingTaskId, onRefresh],
+		[loadingTaskId, onDeleteTask],
 	);
 
 	const handleUpdateText = useCallback(
@@ -591,6 +662,27 @@ export function TaskList({
 		[loadingTaskId, onSwitchTask],
 	);
 
+	const handleContainerTouchStart = useCallback((e: React.TouchEvent) => {
+		setTouchStartY(e.touches[0].clientY);
+	}, []);
+
+	const handleContainerTouchMove = useCallback(
+		(e: React.TouchEvent) => {
+			if (touchStartY === null || !containerRef.current) return;
+
+			const currentY = e.touches[0].clientY;
+			const deltaY = touchStartY - currentY;
+
+			containerRef.current.scrollTop += deltaY;
+			setTouchStartY(currentY);
+		},
+		[touchStartY],
+	);
+
+	const handleContainerTouchEnd = useCallback(() => {
+		setTouchStartY(null);
+	}, []);
+
 	if (tasks.length === 0) {
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-16">
@@ -605,8 +697,14 @@ export function TaskList({
 	}
 
 	return (
-		<div className="flex-1 overflow-auto">
-			<ul className="divide-y divide-border">
+		<div
+			ref={containerRef}
+			className="flex-1 overflow-y-auto min-h-0"
+			onTouchStart={handleContainerTouchStart}
+			onTouchMove={handleContainerTouchMove}
+			onTouchEnd={handleContainerTouchEnd}
+		>
+			<ul ref={listRef} className="divide-y divide-border">
 				{tasks.map((task) => (
 					<TaskRow
 						key={task.id}

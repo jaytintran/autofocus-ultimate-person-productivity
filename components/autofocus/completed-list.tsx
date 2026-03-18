@@ -152,7 +152,7 @@ export function CompletedList({
 	}
 
 	return (
-		<div className="flex-1 overflow-auto">
+		<div className="flex-1 overflow-y-auto min-h-0">
 			{groupedTasks.map((group) => (
 				<div key={group.dateKey} className="mb-4">
 					{/* Date header */}
