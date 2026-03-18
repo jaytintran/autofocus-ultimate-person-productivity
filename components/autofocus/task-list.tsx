@@ -11,6 +11,7 @@ import {
 	updateTask,
 	reorderTasks,
 	getNextPosition,
+	getAppState,
 } from "@/lib/store";
 import { formatTimeCompact } from "./timer-bar";
 import {
@@ -33,16 +34,25 @@ interface TaskListProps {
 		draggedTaskId: string,
 		dropTargetId: string,
 	) => Promise<void>;
+	onSwitchTask: (
+		newTask: Task,
+		action: "complete" | "reenter",
+	) => Promise<void>;
 }
 
 interface TaskRowProps {
 	task: Task;
 	isWorking: boolean;
+	workingTask: Task | null;
 	onStart: (task: Task) => void;
 	onDone: (task: Task) => void;
 	onReenter: (task: Task) => void;
 	onDelete: (taskId: string) => void;
 	onUpdateText: (taskId: string, newText: string) => void;
+	onSwitchTask: (
+		newTask: Task,
+		action: "complete" | "reenter",
+	) => Promise<void>;
 	onDragStart: (e: React.DragEvent, task: Task) => void;
 	onDragOver: (e: React.DragEvent, task: Task) => void;
 	onDragEnd: () => void;
@@ -57,11 +67,13 @@ interface TaskRowProps {
 function TaskRow({
 	task,
 	isWorking,
+	workingTask,
 	onStart,
 	onDone,
 	onReenter,
 	onDelete,
 	onUpdateText,
+	onSwitchTask,
 	onDragStart,
 	onDragOver,
 	onDragEnd,
@@ -77,6 +89,9 @@ function TaskRow({
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 	const [showModal, setShowModal] = useState(false);
 	const [modalEditText, setModalEditText] = useState(task.text);
+	const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
+	const [pendingTask, setPendingTask] = useState<Task | null>(null);
+	const reenterButtonRef = useRef<HTMLButtonElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const spanRef = useRef<HTMLSpanElement>(null);
 
@@ -86,6 +101,12 @@ function TaskRow({
 			inputRef.current.select();
 		}
 	}, [isEditing]);
+
+	useEffect(() => {
+		if (showSwitchConfirm) {
+			reenterButtonRef.current?.focus();
+		}
+	}, [showSwitchConfirm]);
 
 	const isTextOverflowing = () => {
 		if (!spanRef.current) return false;
@@ -142,11 +163,37 @@ function TaskRow({
 		}
 	};
 
+	const handleStartClick = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (workingTask && workingTask.id !== task.id) {
+			setPendingTask(task);
+			setShowSwitchConfirm(true);
+		} else {
+			onStart(task);
+		}
+	};
+
+	const handleSwitchComplete = async () => {
+		setShowSwitchConfirm(false);
+		if (pendingTask) {
+			await onSwitchTask(pendingTask, "complete");
+			setPendingTask(null);
+		}
+	};
+
+	const handleSwitchReenter = async () => {
+		setShowSwitchConfirm(false);
+		if (pendingTask) {
+			await onSwitchTask(pendingTask, "reenter");
+			setPendingTask(null);
+		}
+	};
+
 	return (
 		<>
 			<li
 				data-task-id={task.id}
-				draggable={!isWorking && !isEditing && !disabled}
+				draggable={!isWorking && !isEditing}
 				onDragStart={(e) => onDragStart(e, task)}
 				onDragOver={(e) => onDragOver(e, task)}
 				onDragEnd={onDragEnd}
@@ -166,7 +213,7 @@ function TaskRow({
 				<div
 					className={`
 						cursor-grab active:cursor-grabbing text-muted-foreground
-						${isWorking || disabled ? "opacity-30" : "opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100"}
+						${isWorking ? "opacity-30" : "opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100"}
 						transition-opacity flex-shrink-0
 					`}
 				>
@@ -221,12 +268,8 @@ function TaskRow({
 						<div className="flex items-center gap-1 flex-shrink-0">
 							{/* Start button */}
 							<button
-								onClick={(e) => {
-									e.stopPropagation();
-									onStart(task);
-								}}
-								disabled={disabled}
-								className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
+								onClick={handleStartClick}
+								className="p-1.5 hover:bg-accent rounded transition-colors"
 								title="Start working on this task"
 							>
 								<Play className="w-3.5 h-3.5 text-[#8b9a6b]" />
@@ -238,8 +281,7 @@ function TaskRow({
 									e.stopPropagation();
 									onDone(task);
 								}}
-								disabled={disabled}
-								className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
+								className="p-1.5 hover:bg-accent rounded transition-colors"
 								title="Mark as done"
 							>
 								<Check className="w-3.5 h-3.5 text-[#8b9a6b]" />
@@ -251,8 +293,7 @@ function TaskRow({
 									e.stopPropagation();
 									onReenter(task);
 								}}
-								disabled={disabled}
-								className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
+								className="p-1.5 hover:bg-accent rounded transition-colors"
 								title="Re-enter at end of list"
 							>
 								<RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
@@ -269,8 +310,7 @@ function TaskRow({
 							) : (
 								<button
 									onClick={handleDeleteClick}
-									disabled={disabled}
-									className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
+									className="p-1.5 hover:bg-accent rounded transition-colors"
 									title="Delete task"
 								>
 									<Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
@@ -318,6 +358,46 @@ function TaskRow({
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			{/* Switch task confirmation dialog */}
+			<Dialog open={showSwitchConfirm} onOpenChange={setShowSwitchConfirm}>
+				<DialogContent showCloseButton={false}>
+					<DialogHeader>
+						<DialogTitle>Switch Tasks?</DialogTitle>
+					</DialogHeader>
+					<p className="text-sm text-muted-foreground">
+						You're currently working on "{workingTask?.text}". What would you
+						like to do with it?
+					</p>
+					<div className="flex gap-2 justify-end mt-4">
+						<button
+							type="button"
+							onClick={() => setShowSwitchConfirm(false)}
+							disabled={disabled}
+							className="px-4 py-2 text-sm border rounded hover:bg-accent transition-colors"
+						>
+							Cancel
+						</button>
+						<button
+							ref={reenterButtonRef}
+							type="button"
+							onClick={() => void handleSwitchReenter()}
+							disabled={disabled}
+							className="px-4 py-2 text-sm bg-[#c49a6b] text-white rounded hover:bg-[#c49a6b]/90 transition-colors"
+						>
+							Re-enter at End
+						</button>
+						<button
+							type="button"
+							onClick={() => void handleSwitchComplete()}
+							disabled={disabled}
+							className="px-4 py-2 text-sm bg-[#8b9a6b] text-white rounded hover:bg-[#8b9a6b]/90 transition-colors"
+						>
+							Mark as Completed
+						</button>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }
@@ -332,6 +412,7 @@ export function TaskList({
 	onDoneTask,
 	onDeleteTask,
 	onReorderTasks,
+	onSwitchTask,
 }: TaskListProps) {
 	const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 	const [draggedTask, setDraggedTask] = useState<Task | null>(null);
@@ -339,9 +420,11 @@ export function TaskList({
 	const [touchStartY, setTouchStartY] = useState<number | null>(null);
 	const [touchCurrentY, setTouchCurrentY] = useState<number | null>(null);
 
+	const workingTask = allTasks.find((t) => t.id === workingTaskId) || null;
+
 	const handleStart = useCallback(
 		async (task: Task) => {
-			if (loadingTaskId || workingTaskId) return;
+			if (loadingTaskId) return;
 			setLoadingTaskId(task.id);
 			try {
 				await startTask(task.id);
@@ -350,7 +433,7 @@ export function TaskList({
 				setLoadingTaskId(null);
 			}
 		},
-		[loadingTaskId, workingTaskId, onRefresh],
+		[loadingTaskId, onRefresh],
 	);
 
 	const handleDone = useCallback(
@@ -495,6 +578,19 @@ export function TaskList({
 		setTouchCurrentY(null);
 	}, [draggedTask, dropTargetId, onReorderTasks]);
 
+	const handleSwitchTask = useCallback(
+		async (newTask: Task, action: "complete" | "reenter") => {
+			if (loadingTaskId) return;
+			setLoadingTaskId(newTask.id);
+			try {
+				await onSwitchTask(newTask, action);
+			} finally {
+				setLoadingTaskId(null);
+			}
+		},
+		[loadingTaskId, onSwitchTask],
+	);
+
 	if (tasks.length === 0) {
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-16">
@@ -516,11 +612,13 @@ export function TaskList({
 						key={task.id}
 						task={task}
 						isWorking={task.id === workingTaskId}
+						workingTask={workingTask}
 						onStart={handleStart}
 						onDone={handleDone}
 						onReenter={handleReenter}
 						onDelete={handleDelete}
 						onUpdateText={handleUpdateText}
+						onSwitchTask={handleSwitchTask}
 						onDragStart={handleDragStart}
 						onDragOver={handleDragOver}
 						onDragEnd={handleDragEnd}
@@ -529,7 +627,7 @@ export function TaskList({
 						onTouchEnd={handleTouchEnd}
 						isDragging={draggedTask?.id === task.id}
 						isDropTarget={dropTargetId === task.id}
-						disabled={!!loadingTaskId || !!workingTaskId}
+						disabled={!!loadingTaskId}
 					/>
 				))}
 			</ul>

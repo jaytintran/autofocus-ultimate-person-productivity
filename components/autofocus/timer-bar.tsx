@@ -27,7 +27,7 @@ function formatTimerDisplay(ms: number): string {
 	return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
-// Format for task row display: 32m10s or 1h 14m
+// Format for task row display: 32m 10s or 1h 14m
 export function formatTimeCompact(ms: number): string {
 	if (ms === 0) return "";
 
@@ -37,14 +37,10 @@ export function formatTimeCompact(ms: number): string {
 	const seconds = totalSeconds % 60;
 
 	if (hours > 0) {
-		return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+		return `${hours}h ${minutes}m`;
 	}
 
-	if (minutes > 0) {
-		return seconds > 0 ? `${minutes}m${seconds}s` : `${minutes}m`;
-	}
-
-	return `${seconds}s`;
+	return `${minutes}m ${seconds}s`;
 }
 
 export function TimerBar({

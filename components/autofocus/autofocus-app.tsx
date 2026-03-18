@@ -16,10 +16,12 @@ import {
 	deleteTask,
 	getActiveTasks,
 	getAppState,
+	getNextPosition,
 	getCompletedTasks,
 	getTotalPageCount,
 	markTaskDone,
 	pauseTimer,
+	reenterTask,
 	reorderTasks,
 	resumeTimer,
 	startTask,
@@ -48,6 +50,17 @@ function getVisibleTotalPages(tasks: Task[]): number {
 	return tasks.length > 0
 		? Math.max(...tasks.map((task) => task.page_number))
 		: 1;
+}
+
+function getCurrentSessionMs(appState: AppState, nowMs: number): number {
+	const baseSessionMs = appState.current_session_ms || 0;
+
+	if (appState.timer_state !== "running" || !appState.session_start_time) {
+		return baseSessionMs;
+	}
+
+	const sessionStartMs = new Date(appState.session_start_time).getTime();
+	return baseSessionMs + Math.max(nowMs - sessionStartMs, 0);
 }
 
 function buildReorderedActiveTasks(
@@ -543,6 +556,137 @@ export function AutofocusApp() {
 		],
 	);
 
+	const handleSwitchTask = useCallback(
+		async (newTask: Task, action: "complete" | "reenter") => {
+			if (!displayedAppState?.working_on_task_id) return;
+
+			const workingTask = displayedActiveTasks.find(
+				(t) => t.id === displayedAppState.working_on_task_id,
+			);
+			if (!workingTask) return;
+
+			const nowDate = new Date();
+			const now = nowDate.toISOString();
+			const sessionMs = getCurrentSessionMs(
+				displayedAppState,
+				nowDate.getTime(),
+			);
+			const totalTime = workingTask.total_time_ms + sessionMs;
+
+			if (action === "complete") {
+				const optimisticActiveTasks = displayedActiveTasks
+					.filter((t) => t.id !== workingTask.id)
+					.map((t) =>
+						t.id === newTask.id
+							? { ...t, status: "in-progress", updated_at: now }
+							: t,
+					);
+
+				const completedTask: Task = {
+					...workingTask,
+					status: "completed",
+					completed_at: now,
+					total_time_ms: totalTime,
+					updated_at: now,
+				};
+
+				await runOptimisticUpdate(
+					{
+						activeTasks: optimisticActiveTasks,
+						completedTasks: [completedTask, ...displayedCompletedTasks],
+						appState: {
+							...displayedAppState,
+							working_on_task_id: newTask.id,
+							timer_state: "idle",
+							current_session_ms: 0,
+							session_start_time: null,
+							updated_at: now,
+						},
+						totalPages: getVisibleTotalPages(optimisticActiveTasks),
+					},
+					async () => {
+						await markTaskDone(workingTask.id, totalTime);
+						await startTask(newTask.id);
+					},
+				);
+			} else {
+				// Re-enter
+				const maxPage = Math.max(
+					...displayedActiveTasks.map((t) => t.page_number),
+					1,
+				);
+				const position = await getNextPosition(maxPage);
+
+				const reenteredTask: Task = {
+					...workingTask,
+					id: crypto.randomUUID(),
+					page_number: maxPage,
+					position,
+					status: "active",
+					total_time_ms: totalTime,
+					re_entered_from: workingTask.id,
+					added_at: now,
+					completed_at: null,
+					updated_at: now,
+				};
+
+				const optimisticActiveTasks = [
+					...displayedActiveTasks
+						.filter((t) => t.id !== workingTask.id)
+						.map((t) =>
+							t.id === newTask.id
+								? { ...t, status: "in-progress", updated_at: now }
+								: t,
+						),
+					reenteredTask,
+				].sort(
+					(a, b) => a.page_number - b.page_number || a.position - b.position,
+				);
+
+				const completedTask: Task = {
+					...workingTask,
+					status: "completed",
+					completed_at: now,
+					total_time_ms: totalTime,
+					updated_at: now,
+				};
+
+				await runOptimisticUpdate(
+					{
+						activeTasks: optimisticActiveTasks,
+						completedTasks: [completedTask, ...displayedCompletedTasks],
+						appState: {
+							...displayedAppState,
+							working_on_task_id: newTask.id,
+							timer_state: "idle",
+							current_session_ms: 0,
+							session_start_time: null,
+							updated_at: now,
+						},
+						totalPages: getVisibleTotalPages(optimisticActiveTasks),
+					},
+					async () => {
+						await reenterTask(
+							workingTask.id,
+							workingTask.text,
+							maxPage,
+							position,
+							totalTime,
+						);
+						await markTaskDone(workingTask.id, totalTime);
+						await startTask(newTask.id);
+					},
+				);
+			}
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			runOptimisticUpdate,
+		],
+	);
+
 	// Auto-navigate to the page with the working task
 	useEffect(() => {
 		if (workingTask && workingTask.page_number !== currentPage) {
@@ -603,6 +747,7 @@ export function AutofocusApp() {
 						onDoneTask={handleDoneTask}
 						onDeleteTask={handleDeleteTask}
 						onReorderTasks={handleReorderTasks}
+						onSwitchTask={handleSwitchTask}
 					/>
 				) : (
 					<CompletedList
