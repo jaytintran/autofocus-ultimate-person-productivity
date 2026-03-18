@@ -13,6 +13,12 @@ import {
 	getNextPosition,
 } from "@/lib/store";
 import { formatTimeCompact } from "./timer-bar";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 
 interface TaskListProps {
 	tasks: Task[];
@@ -69,7 +75,10 @@ function TaskRow({
 	const [isEditing, setIsEditing] = useState(false);
 	const [editText, setEditText] = useState(task.text);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [showModal, setShowModal] = useState(false);
+	const [modalEditText, setModalEditText] = useState(task.text);
 	const inputRef = useRef<HTMLInputElement>(null);
+	const spanRef = useRef<HTMLSpanElement>(null);
 
 	useEffect(() => {
 		if (isEditing && inputRef.current) {
@@ -78,12 +87,30 @@ function TaskRow({
 		}
 	}, [isEditing]);
 
+	const isTextOverflowing = () => {
+		if (!spanRef.current) return false;
+		return spanRef.current.scrollWidth > spanRef.current.clientWidth;
+	};
+
 	const handleTextClick = (e: React.MouseEvent) => {
-		// Allow editing unless this specific task is the one being worked on
 		if (isWorking) return;
 		e.stopPropagation();
-		setEditText(task.text);
-		setIsEditing(true);
+
+		if (isTextOverflowing()) {
+			setModalEditText(task.text);
+			setShowModal(true);
+		} else {
+			setEditText(task.text);
+			setIsEditing(true);
+		}
+	};
+
+	const handleModalSave = () => {
+		const trimmed = modalEditText.trim();
+		if (trimmed && trimmed !== task.text) {
+			onUpdateText(task.id, trimmed);
+		}
+		setShowModal(false);
 	};
 
 	const handleSave = () => {
@@ -116,146 +143,187 @@ function TaskRow({
 	};
 
 	return (
-		<li
-			data-task-id={task.id}
-			draggable={!isWorking && !isEditing && !disabled}
-			onDragStart={(e) => onDragStart(e, task)}
-			onDragOver={(e) => onDragOver(e, task)}
-			onDragEnd={onDragEnd}
-			onTouchStart={(e) => onTouchStart(e, task)}
-			onTouchMove={onTouchMove}
-			onTouchEnd={onTouchEnd}
-			className={`
-        group px-4 py-2.5 flex items-center gap-2
-        touch-none
-        ${isWorking ? "bg-[#8b9a6b]/15 border-l-2 border-[#8b9a6b]" : ""}
-        ${isDragging ? "opacity-50 bg-accent" : ""}
-        ${isDropTarget ? "border-t-2 border-[#8b9a6b]" : ""}
-        transition-colors
-      `}
-		>
-			{/* Drag handle */}
-			<div
+		<>
+			<li
+				data-task-id={task.id}
+				draggable={!isWorking && !isEditing && !disabled}
+				onDragStart={(e) => onDragStart(e, task)}
+				onDragOver={(e) => onDragOver(e, task)}
+				onDragEnd={onDragEnd}
+				onTouchStart={(e) => onTouchStart(e, task)}
+				onTouchMove={onTouchMove}
+				onTouchEnd={onTouchEnd}
 				className={`
-          cursor-grab active:cursor-grabbing text-muted-foreground
-          ${isWorking || disabled ? "opacity-30" : "opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100"}
-          transition-opacity flex-shrink-0
-        `}
+					group px-4 py-2.5 flex items-center gap-2
+					touch-none
+					${isWorking ? "bg-[#8b9a6b]/15 border-l-2 border-[#8b9a6b]" : ""}
+					${isDragging ? "opacity-50 bg-accent" : ""}
+					${isDropTarget ? "border-t-2 border-[#8b9a6b]" : ""}
+					transition-colors
+				`}
 			>
-				<GripVertical className="w-4 h-4" />
-			</div>
+				{/* Drag handle */}
+				<div
+					className={`
+						cursor-grab active:cursor-grabbing text-muted-foreground
+						${isWorking || disabled ? "opacity-30" : "opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100"}
+						transition-opacity flex-shrink-0
+					`}
+				>
+					<GripVertical className="w-4 h-4" />
+				</div>
 
-			{/* Task text - clickable area to edit task */}
-			<div className="flex-1 min-w-0 flex items-center gap-2">
-				{isEditing ? (
-					<input
-						ref={inputRef}
-						type="text"
-						value={editText}
-						onChange={(e) => setEditText(e.target.value)}
-						onBlur={handleSave}
-						onKeyDown={handleKeyDown}
-						onClick={(e) => e.stopPropagation()}
-						className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-foreground"
-					/>
-				) : (
-					<span
-						onClick={handleTextClick}
-						className={`
-							truncate cursor-text
-							${isWorking ? "text-[#ddd4b8]" : ""}
-						`}
-					>
-						{task.text}
-					</span>
-				)}
-			</div>
-
-			{/* Right side: badges and action buttons */}
-			<div className="flex items-center gap-1.5 flex-shrink-0">
-				{/* Re-entered badge */}
-				{task.re_entered_from && !isEditing && (
-					<span className="text-[10px] px-1.5 py-0.5 rounded border border-[#c49a6b]/40 bg-[#c49a6b]/10 text-[#c49a6b] flex-shrink-0">
-						re-entered
-					</span>
-				)}
-
-				{/* Time spent badge */}
-				{task.total_time_ms > 0 && !isEditing && (
-					<span className="text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/30 bg-muted/50 text-muted-foreground flex-shrink-0">
-						{formatTimeCompact(task.total_time_ms)}
-					</span>
-				)}
-
-				{/* Action buttons */}
-				{!isWorking && !isEditing && (
-					<div
-						className={`
-            flex items-center gap-1 flex-shrink-0
-            md:opacity-0 md:group-hover:opacity-100 transition-opacity
-          `}
-					>
-						{/* Start button */}
-						<button
-							onClick={(e) => {
-								e.stopPropagation();
-								onStart(task);
-							}}
-							disabled={disabled}
-							className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
-							title="Start working on this task"
+				{/* Task text - clickable area to edit task */}
+				<div className="flex-1 min-w-0 flex items-center gap-2">
+					{isEditing ? (
+						<input
+							ref={inputRef}
+							type="text"
+							value={editText}
+							onChange={(e) => setEditText(e.target.value)}
+							onBlur={handleSave}
+							onKeyDown={handleKeyDown}
+							onClick={(e) => e.stopPropagation()}
+							className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-foreground"
+						/>
+					) : (
+						<span
+							ref={spanRef}
+							onClick={handleTextClick}
+							className={`
+								truncate cursor-text
+								${isWorking ? "text-[#ddd4b8]" : ""}
+							`}
 						>
-							<Play className="w-3.5 h-3.5 text-[#8b9a6b]" />
-						</button>
+							{task.text}
+						</span>
+					)}
+				</div>
 
-						{/* Done button */}
-						<button
-							onClick={(e) => {
-								e.stopPropagation();
-								onDone(task);
-							}}
-							disabled={disabled}
-							className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
-							title="Mark as done"
+				{/* Right side: badges and action buttons */}
+				<div className="flex items-center gap-1.5 flex-shrink-0">
+					{/* Re-entered badge */}
+					{task.re_entered_from && !isEditing && (
+						<span className="text-[10px] px-1.5 py-0.5 rounded border border-[#c49a6b]/40 bg-[#c49a6b]/10 text-[#c49a6b] flex-shrink-0">
+							re-entered
+						</span>
+					)}
+
+					{/* Time spent badge */}
+					{task.total_time_ms > 0 && !isEditing && (
+						<span className="text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/30 bg-muted/50 text-muted-foreground flex-shrink-0">
+							{formatTimeCompact(task.total_time_ms)}
+						</span>
+					)}
+
+					{/* Action buttons */}
+					{!isWorking && !isEditing && (
+						<div
+							className={`
+								flex items-center gap-1 flex-shrink-0
+								md:opacity-0 md:group-hover:opacity-100 transition-opacity
+							`}
 						>
-							<Check className="w-3.5 h-3.5 text-[#8b9a6b]" />
-						</button>
-
-						{/* Re-enter button */}
-						<button
-							onClick={(e) => {
-								e.stopPropagation();
-								onReenter(task);
-							}}
-							disabled={disabled}
-							className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
-							title="Re-enter at end of list"
-						>
-							<RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
-						</button>
-
-						{/* Delete button */}
-						{showDeleteConfirm ? (
+							{/* Start button */}
 							<button
-								onClick={handleDeleteClick}
-								className="px-2 py-1 text-xs bg-destructive/20 text-destructive hover:bg-destructive/30 rounded transition-colors"
-							>
-								Yes
-							</button>
-						) : (
-							<button
-								onClick={handleDeleteClick}
+								onClick={(e) => {
+									e.stopPropagation();
+									onStart(task);
+								}}
 								disabled={disabled}
 								className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
-								title="Delete task"
+								title="Start working on this task"
 							>
-								<Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+								<Play className="w-3.5 h-3.5 text-[#8b9a6b]" />
 							</button>
-						)}
+
+							{/* Done button */}
+							<button
+								onClick={(e) => {
+									e.stopPropagation();
+									onDone(task);
+								}}
+								disabled={disabled}
+								className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
+								title="Mark as done"
+							>
+								<Check className="w-3.5 h-3.5 text-[#8b9a6b]" />
+							</button>
+
+							{/* Re-enter button */}
+							<button
+								onClick={(e) => {
+									e.stopPropagation();
+									onReenter(task);
+								}}
+								disabled={disabled}
+								className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
+								title="Re-enter at end of list"
+							>
+								<RefreshCw className="w-3.5 h-3.5 text-muted-foreground" />
+							</button>
+
+							{/* Delete button */}
+							{showDeleteConfirm ? (
+								<button
+									onClick={handleDeleteClick}
+									className="px-2 py-1 text-xs bg-destructive/20 text-destructive hover:bg-destructive/30 rounded transition-colors"
+								>
+									Yes
+								</button>
+							) : (
+								<button
+									onClick={handleDeleteClick}
+									disabled={disabled}
+									className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-30"
+									title="Delete task"
+								>
+									<Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-destructive" />
+								</button>
+							)}
+						</div>
+					)}
+				</div>
+			</li>
+
+			{/* Modal for editing long text */}
+			<Dialog open={showModal} onOpenChange={setShowModal}>
+				<DialogContent className="sm:max-w-[500px]">
+					<DialogHeader>
+						<DialogTitle>Edit Task</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4 pt-4">
+						<textarea
+							value={modalEditText}
+							onChange={(e) => setModalEditText(e.target.value)}
+							className="w-full min-h-[120px] bg-transparent border border-[#8b9a6b] rounded-md p-3 outline-none text-foreground resize-none"
+							autoFocus
+							onKeyDown={(e) => {
+								if (e.key === "Enter" && e.ctrlKey) {
+									handleModalSave();
+								} else if (e.key === "Escape") {
+									setShowModal(false);
+								}
+							}}
+						/>
+						<div className="flex justify-end gap-2">
+							<button
+								onClick={() => setShowModal(false)}
+								className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+							>
+								Cancel
+							</button>
+							<button
+								onClick={handleModalSave}
+								className="px-4 py-2 text-sm bg-[#8b9a6b] text-background hover:bg-[#8b9a6b]/90 rounded transition-colors"
+							>
+								Save
+							</button>
+						</div>
 					</div>
-				)}
-			</div>
-		</li>
+				</DialogContent>
+			</Dialog>
+		</>
 	);
 }
 
