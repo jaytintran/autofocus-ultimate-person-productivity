@@ -288,7 +288,7 @@ function TaskRow({
 
 			{/* Modal for editing long text */}
 			<Dialog open={showModal} onOpenChange={setShowModal}>
-				<DialogContent className="sm:max-w-[500px]">
+				<DialogContent className="sm:max-w-[500px] top-[20%] sm:top-[50%] translate-y-[-20%] sm:translate-y-[-50%]">
 					<DialogHeader>
 						<DialogTitle>Edit Task</DialogTitle>
 					</DialogHeader>
