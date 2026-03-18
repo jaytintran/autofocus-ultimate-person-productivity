@@ -166,45 +166,39 @@ function TaskRow({
 									className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
 								/>
 							</CollapsibleTrigger>
-							<div
-								className="flex-1 min-w-0 cursor-pointer"
-								onClick={() => !isWorking && !disabled && onStart(task)}
-							>
-								<CollapsibleContent className="md:hidden">
-									<span
-										onClick={handleTextClick}
-										className={`
-										${isWorking ? "text-[#ddd4b8]" : ""}
-										${!isWorking && !disabled ? "hover:text-[#ddd4b8]" : ""}
-									`}
-									>
-										{task.text}
-									</span>
-								</CollapsibleContent>
+							<div className="flex-1 min-w-0">
 								<div className="md:hidden">
-									{!isExpanded && (
+									<div
+										className="cursor-pointer"
+										onClick={() => !isWorking && !disabled && onStart(task)}
+									>
 										<span
 											onClick={handleTextClick}
 											className={`
-											line-clamp-2 cursor-text
-											${isWorking ? "text-[#ddd4b8]" : ""}
-											${!isWorking && !disabled ? "hover:text-[#ddd4b8]" : ""}
-										`}
+												cursor-text ${isExpanded ? "" : "line-clamp-2"}
+												${isWorking ? "text-[#ddd4b8]" : ""}
+												${!isWorking && !disabled ? "hover:text-[#ddd4b8]" : ""}
+											`}
 										>
 											{task.text}
 										</span>
-									)}
+									</div>
 								</div>
-								<span
-									onClick={handleTextClick}
-									className={`
-									hidden md:block cursor-text
-									${isWorking ? "text-[#ddd4b8]" : ""}
-									${!isWorking && !disabled ? "hover:text-[#ddd4b8]" : ""}
-								`}
+								<div
+									className="hidden md:block cursor-pointer"
+									onClick={() => !isWorking && !disabled && onStart(task)}
 								>
-									{task.text}
-								</span>
+									<span
+										onClick={handleTextClick}
+										className={`
+											cursor-text
+											${isWorking ? "text-[#ddd4b8]" : ""}
+											${!isWorking && !disabled ? "hover:text-[#ddd4b8]" : ""}
+										`}
+									>
+										{task.text}
+									</span>
+								</div>
 							</div>
 						</div>
 					</Collapsible>
