@@ -11,9 +11,9 @@ export interface Task {
   completed_at: string | null
   total_time_ms: number
   re_entered_from: string | null
+  tag: "read" | "learn" | "finish" | null
   created_at: string
   updated_at: string
-  tag: "read" | "learn" | "file" | null
 }
 
 export interface AppState {
@@ -32,4 +32,5 @@ export interface AppState {
 export interface TaskWithTimer extends Task {
   isWorking: boolean
 }
+
 

@@ -1,7 +1,7 @@
 export const TAG_DEFINITIONS = [
 	{ id: "read" as const, label: "to Read", emoji: "📚" },
 	{ id: "learn" as const, label: "to Learn", emoji: "🎓" },
-	{ id: "file" as const, label: "to File", emoji: "📁" },
+	{ id: "finish" as const, label: "to Finish", emoji: "📁" },
 ] as const;
 
 export type TagId = (typeof TAG_DEFINITIONS)[number]["id"];

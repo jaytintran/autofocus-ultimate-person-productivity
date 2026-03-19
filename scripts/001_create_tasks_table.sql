@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   completed_at TIMESTAMPTZ,
   total_time_ms BIGINT NOT NULL DEFAULT 0,
   re_entered_from UUID REFERENCES tasks(id) ON DELETE SET NULL,
+  tag TEXT CHECK (tag IN ('read', 'learn', 'finish')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -39,4 +40,5 @@ CREATE INDEX IF NOT EXISTS idx_tasks_added_at ON tasks(added_at);
 INSERT INTO app_state (id, current_page, page_size, last_pass_had_no_action, timer_state, current_session_ms)
 VALUES ('00000000-0000-0000-0000-000000000001', 1, 12, FALSE, 'idle', 0)
 ON CONFLICT (id) DO NOTHING;
+
 
