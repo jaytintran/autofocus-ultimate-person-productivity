@@ -20,8 +20,8 @@ export function ViewTabs({
 	onAddTasks,
 }: ViewTabsProps) {
 	return (
-		<div className="flex items-center justify-between px-6 py-3">
-			<div className="inline-flex bg-secondary rounded overflow-hidden">
+		<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-3">
+			<div className="inline-flex bg-secondary rounded overflow-hidden w-fit">
 				<button
 					onClick={() => onViewChange("tasks")}
 					className={`px-4 py-1.5 text-sm transition-colors ${
