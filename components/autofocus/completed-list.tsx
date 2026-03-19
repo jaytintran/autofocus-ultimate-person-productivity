@@ -39,14 +39,16 @@ function formatDateGroup(dateString: string): string {
 		(today.getTime() - taskDate.getTime()) / (1000 * 60 * 60 * 24),
 	);
 
-	if (diffDays === 0) return "Today";
-	if (diffDays === 1) return "Yesterday";
-
 	// Format as DD/MM/YY
 	const day = date.getDate().toString().padStart(2, "0");
 	const month = (date.getMonth() + 1).toString().padStart(2, "0");
 	const year = date.getFullYear().toString().slice(-2);
-	return `${day}/${month}/${year}`;
+	const numericDate = `${day}/${month}/${year}`;
+
+	if (diffDays === 0) return `Today (${numericDate})`;
+	if (diffDays === 1) return `Yesterday (${numericDate})`;
+
+	return numericDate;
 }
 
 function getDateKey(dateString: string): string {

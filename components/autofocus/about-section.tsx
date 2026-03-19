@@ -7,11 +7,22 @@ import {
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
+	DialogDescription,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function AboutSection() {
 	const [isOpen, setIsOpen] = useState(false);
+	const [activeTab, setActiveTab] = useState("philosophy");
+	const isMobile = useIsMobile();
 
 	return (
 		<>
@@ -28,20 +39,41 @@ export function AboutSection() {
 				<DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>About Autofocus (AF4)</DialogTitle>
+						<DialogDescription>
+							Learn about the Autofocus productivity system and how to use it
+							effectively.
+						</DialogDescription>
 					</DialogHeader>
 
-					<Tabs defaultValue="philosophy" className="pt-4">
-						<TabsList className="w-full">
-							<TabsTrigger value="philosophy" className="flex-1">
-								The Philosophy
-							</TabsTrigger>
-							<TabsTrigger value="how" className="flex-1">
-								How It Works
-							</TabsTrigger>
-							<TabsTrigger value="steps" className="flex-1">
-								The Steps
-							</TabsTrigger>
-						</TabsList>
+					<Tabs value={activeTab} onValueChange={setActiveTab} className="pt-4">
+						{isMobile ? (
+							<Select value={activeTab} onValueChange={setActiveTab}>
+								<SelectTrigger className="w-full mb-4">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="philosophy">The Philosophy</SelectItem>
+									<SelectItem value="how">How It Works</SelectItem>
+									<SelectItem value="steps">The Steps</SelectItem>
+									<SelectItem value="dismissal">Why No Dismissal</SelectItem>
+								</SelectContent>
+							</Select>
+						) : (
+							<TabsList className="w-full grid grid-cols-4">
+								<TabsTrigger value="philosophy" className="flex-1">
+									The Philosophy
+								</TabsTrigger>
+								<TabsTrigger value="how" className="flex-1">
+									How It Works
+								</TabsTrigger>
+								<TabsTrigger value="steps" className="flex-1">
+									The Steps
+								</TabsTrigger>
+								<TabsTrigger value="dismissal" className="flex-1">
+									Why No Dismissal
+								</TabsTrigger>
+							</TabsList>
+						)}
 
 						<TabsContent
 							value="philosophy"
@@ -146,6 +178,65 @@ export function AboutSection() {
 									move to the next page
 								</li>
 							</ol>
+						</TabsContent>
+
+						<TabsContent
+							value="dismissal"
+							className="text-sm text-muted-foreground space-y-4 mt-4"
+						>
+							<h4 className="text-foreground font-medium">
+								Why Dismissal Was Removed
+							</h4>
+							<p>
+								The original Autofocus system included a "dismissal" mechanic:
+								if you cycled through an entire page without any task standing
+								out, all remaining tasks on that page were permanently retired —
+								greyed out, not re-entered, gone.
+							</p>
+							<p>
+								This mechanic made sense for its original medium: a paper
+								notebook. On paper, you can't delete a task. Dismissal was the
+								only way to formally retire something that had stopped being
+								relevant. It was the system's self-cleaning mechanism.
+							</p>
+							<p>
+								This app has a delete button. The problem dismissal was designed
+								to solve doesn't exist here.
+							</p>
+							<p>
+								Beyond that, dismissal added cognitive overhead — you had to
+								track whether you'd completed a "full pass," remember not to
+								advance pages too early, and manage a third visual state
+								(greyed-out dismissed tasks) cluttering the list. All of that
+								friction for a mechanic that most people worked around anyway.
+							</p>
+							<div>
+								<h4 className="text-foreground font-medium mb-2">
+									How to handle tasks you're avoiding, now:
+								</h4>
+								<ul className="list-disc list-inside space-y-1.5 ml-2">
+									<li>
+										If a task is no longer relevant — <strong>delete it</strong>
+										. It's gone, it won't come back, no ambiguity.
+									</li>
+									<li>
+										If a task still matters but isn't ready yet —{" "}
+										<strong>re-enter it</strong>. It moves to the end of the
+										list and comes back around naturally.
+									</li>
+									<li>
+										If a task keeps getting re-entered and never gets done —
+										that's a signal worth paying attention to. Either break it
+										down into something smaller, or delete it honestly.
+									</li>
+								</ul>
+							</div>
+							<p>
+								This approach puts the decision consciously in your hands rather
+								than delegating it to a page-cycling rule. It's more direct, and
+								for how most people actually use a digital task list, it's more
+								honest.
+							</p>
 						</TabsContent>
 					</Tabs>
 

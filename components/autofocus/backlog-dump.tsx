@@ -7,6 +7,7 @@ import {
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
+	DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -30,7 +31,16 @@ export function BacklogDump({ onAddTasks, selectedTags }: BacklogDumpProps) {
 		const lines = text
 			.split("\n")
 			.map((line) => line.trim())
-			.filter((line) => line.length > 0);
+			.filter((line) => line.length > 0)
+			.map((line) =>
+				line
+					.split(" ")
+					.map(
+						(word) =>
+							word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+					)
+					.join(" "),
+			);
 
 		if (lines.length === 0 || isLoading) return;
 
@@ -60,12 +70,12 @@ export function BacklogDump({ onAddTasks, selectedTags }: BacklogDumpProps) {
 				<DialogContent className="sm:max-w-[500px]">
 					<DialogHeader>
 						<DialogTitle>Bulk Add Tasks</DialogTitle>
-					</DialogHeader>
-					<div className="space-y-4 pt-4">
-						<p className="text-xs text-muted-foreground">
+						<DialogDescription>
 							Paste multiple tasks, one per line. They will be added to the end
 							of your list.
-						</p>
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4 pt-4">
 						<textarea
 							value={text}
 							onChange={(e) => setText(e.target.value)}

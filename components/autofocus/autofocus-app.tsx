@@ -337,61 +337,64 @@ export function AutofocusApp() {
 			const trimmedText = text.trim();
 			if (!trimmedText || !displayedAppState) return;
 
-			const placement = getNextTaskPlacement(
-				displayedActiveTasks,
-				DEFAULT_TASK_CAPACITY,
-			);
 			const now = new Date().toISOString();
 			const optimisticTask = {
-				...createOptimisticTask(trimmedText, placement, now),
+				id: crypto.randomUUID(),
+				text: trimmedText,
+				status: "active" as const,
+				page_number: 1,
+				position: 0,
+				added_at: now,
+				completed_at: null,
+				total_time_ms: 0,
+				re_entered_from: null,
+				created_at: now,
+				updated_at: now,
 				tag: tag ?? null,
 			};
-			const optimisticActiveTasks = [
-				...displayedActiveTasks,
-				optimisticTask,
-			].sort(
-				(a, b) => a.page_number - b.page_number || a.position - b.position,
-			);
-			const shouldNavigateToNewPage =
-				currentPage === displayedTotalPages &&
-				placement.pageNumber > currentPage;
+
+			// Shift all existing tasks down by 1 position
+			const shiftedTasks = displayedActiveTasks.map((task, index) => ({
+				...task,
+				page_number: Math.floor((index + 1) / DEFAULT_TASK_CAPACITY) + 1,
+				position: (index + 1) % DEFAULT_TASK_CAPACITY,
+				updated_at: now,
+			}));
+
+			const optimisticActiveTasks = [optimisticTask, ...shiftedTasks];
 
 			setPrefetchedTasks(new Map());
-			if (shouldNavigateToNewPage) {
-				setCurrentPage(placement.pageNumber);
-			}
+			setCurrentPage(1);
 
-			try {
-				await runOptimisticUpdate(
-					{
-						activeTasks: optimisticActiveTasks,
-						completedTasks: displayedCompletedTasks,
-						appState: displayedAppState,
-						totalPages: getVisibleTotalPages(optimisticActiveTasks),
-					},
-					async () => {
-						await addTask(
-							trimmedText,
-							placement.pageNumber,
-							placement.position,
-							tag ?? null,
-						);
-					},
-				);
-			} catch (error) {
-				if (shouldNavigateToNewPage) {
-					setCurrentPage(currentPage);
-				}
-				throw error;
-			}
+			// Set optimistic state immediately
+			setOptimisticState({
+				activeTasks: optimisticActiveTasks,
+				completedTasks: displayedCompletedTasks,
+				appState: displayedAppState,
+				totalPages: getVisibleTotalPages(optimisticActiveTasks),
+			});
+
+			// Fire and forget - don't await
+			addTask(trimmedText, 1, 0, tag ?? null)
+				.then(async () => {
+					await mutateActive();
+					await mutateTotalPages();
+					// Clear optimistic state AFTER mutations complete
+					setOptimisticState(null);
+				})
+				.catch(async (error) => {
+					console.error("Failed to add task:", error);
+					await mutateActive();
+					await mutateTotalPages();
+					setOptimisticState(null);
+				});
 		},
 		[
-			currentPage,
 			displayedActiveTasks,
 			displayedAppState,
 			displayedCompletedTasks,
-			displayedTotalPages,
-			runOptimisticUpdate,
+			mutateActive,
+			mutateTotalPages,
 		],
 	);
 
@@ -405,74 +408,76 @@ export function AutofocusApp() {
 
 			if (trimmedTaskTexts.length === 0) return;
 
-			const projectedTasks = displayedActiveTasks.map((task) => ({
-				page_number: task.page_number,
-				position: task.position,
+			const now = new Date().toISOString();
+
+			// Create new tasks at the top (positions 0, 1, 2, ...)
+			const newTasks = trimmedTaskTexts.map((taskText, index) => ({
+				id: crypto.randomUUID(),
+				text: taskText,
+				status: "active" as const,
+				page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
+				position: index % DEFAULT_TASK_CAPACITY,
+				added_at: now,
+				completed_at: null,
+				total_time_ms: 0,
+				re_entered_from: null,
+				created_at: now,
+				updated_at: now,
+				tag: tag ?? null,
 			}));
 
-			const tasksToAdd = trimmedTaskTexts.map((taskText) => {
-				const placement = appendProjectedTask(
-					projectedTasks,
-					DEFAULT_TASK_CAPACITY,
-				);
-
+			// Shift all existing tasks down
+			const shiftedTasks = displayedActiveTasks.map((task, index) => {
+				const newIndex = index + trimmedTaskTexts.length;
 				return {
-					text: taskText,
-					pageNumber: placement.pageNumber,
-					position: placement.position,
-					tag: tag ?? null,
+					...task,
+					page_number: Math.floor(newIndex / DEFAULT_TASK_CAPACITY) + 1,
+					position: newIndex % DEFAULT_TASK_CAPACITY,
+					updated_at: now,
 				};
 			});
-			const now = new Date().toISOString();
-			const optimisticActiveTasks = [
-				...displayedActiveTasks,
-				...tasksToAdd.map((task) => ({
-					...createOptimisticTask(
-						task.text,
-						{ pageNumber: task.pageNumber, position: task.position },
-						now,
-					),
-					tag: task.tag,
-				})),
-			].sort(
-				(a, b) => a.page_number - b.page_number || a.position - b.position,
-			);
-			const lastAddedTask = tasksToAdd[tasksToAdd.length - 1];
-			const shouldNavigateToNewPage =
-				currentPage === displayedTotalPages &&
-				lastAddedTask.pageNumber > currentPage;
+
+			const optimisticActiveTasks = [...newTasks, ...shiftedTasks];
+
+			const tasksToAdd = trimmedTaskTexts.map((taskText, index) => ({
+				text: taskText,
+				pageNumber: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
+				position: index % DEFAULT_TASK_CAPACITY,
+				tag: tag ?? null,
+			}));
 
 			setPrefetchedTasks(new Map());
-			if (shouldNavigateToNewPage) {
-				setCurrentPage(lastAddedTask.pageNumber);
-			}
+			setCurrentPage(1);
 
-			try {
-				await runOptimisticUpdate(
-					{
-						activeTasks: optimisticActiveTasks,
-						completedTasks: displayedCompletedTasks,
-						appState: displayedAppState,
-						totalPages: getVisibleTotalPages(optimisticActiveTasks),
-					},
-					async () => {
-						await addMultipleTasks(tasksToAdd);
-					},
-				);
-			} catch (error) {
-				if (shouldNavigateToNewPage) {
-					setCurrentPage(currentPage);
-				}
-				throw error;
-			}
+			// Set optimistic state immediately
+			setOptimisticState({
+				activeTasks: optimisticActiveTasks,
+				completedTasks: displayedCompletedTasks,
+				appState: displayedAppState,
+				totalPages: getVisibleTotalPages(optimisticActiveTasks),
+			});
+
+			// Fire and forget - don't await
+			addMultipleTasks(tasksToAdd)
+				.then(async () => {
+					await mutateActive();
+					await mutateTotalPages();
+					// Clear optimistic state AFTER mutations complete
+					setOptimisticState(null);
+				})
+				.catch(async (error) => {
+					console.error("Failed to add tasks:", error);
+					await mutateActive();
+					await mutateTotalPages();
+					setOptimisticState(null);
+				});
 		},
 		[
-			currentPage,
 			displayedActiveTasks,
 			displayedAppState,
 			displayedCompletedTasks,
-			displayedTotalPages,
-			runOptimisticUpdate,
+			mutateActive,
+			mutateTotalPages,
 		],
 	);
 
@@ -628,39 +633,46 @@ export function AutofocusApp() {
 			const now = new Date().toISOString();
 
 			if (deletedActiveTask) {
-				// Clear prefetch cache to force refresh after list reflow
 				setPrefetchedTasks(new Map());
 			}
 
-			await runOptimisticUpdate(
-				{
-					activeTasks: optimisticActiveTasks,
-					completedTasks: optimisticCompletedTasks,
-					appState: deletingWorkingTask
-						? {
-								...displayedAppState,
-								working_on_task_id: null,
-								timer_state: "idle",
-								current_session_ms: 0,
-								session_start_time: null,
-								updated_at: now,
-							}
-						: displayedAppState,
-					totalPages: getVisibleTotalPages(optimisticActiveTasks),
-				},
-				async () => {
-					await deleteTask(taskId);
+			// Set optimistic state immediately
+			setOptimisticState({
+				activeTasks: optimisticActiveTasks,
+				completedTasks: optimisticCompletedTasks,
+				appState: deletingWorkingTask
+					? {
+							...displayedAppState,
+							working_on_task_id: null,
+							timer_state: "idle",
+							current_session_ms: 0,
+							session_start_time: null,
+							updated_at: now,
+						}
+					: displayedAppState,
+				totalPages: getVisibleTotalPages(optimisticActiveTasks),
+			});
+
+			// Fire and forget - don't await
+			deleteTask(taskId)
+				.then(async () => {
 					if (deletingWorkingTask) {
 						await stopWorkingOnTask();
 					}
-				},
-			);
+					await refreshAll();
+					setOptimisticState(null);
+				})
+				.catch(async (error) => {
+					console.error("Failed to delete task:", error);
+					await refreshAll();
+					setOptimisticState(null);
+				});
 		},
 		[
 			displayedActiveTasks,
 			displayedAppState,
 			displayedCompletedTasks,
-			runOptimisticUpdate,
+			refreshAll,
 		],
 	);
 

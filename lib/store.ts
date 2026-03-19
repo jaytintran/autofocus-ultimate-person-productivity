@@ -73,7 +73,35 @@ export async function addTask(
 	tag?: TagId | null,
 ): Promise<Task> {
 	const supabase = createClient();
-	const { data, error } = await supabase
+
+	// Shift all existing active tasks down by 1
+	const { data: existingTasks } = await supabase
+		.from("tasks")
+		.select("*")
+		.in("status", ["active", "in-progress"])
+		.order("page_number", { ascending: true })
+		.order("position", { ascending: true });
+
+	const PAGE_SIZE = 12;
+	const now = new Date().toISOString();
+
+	// Batch update all tasks in parallel
+	const updatePromises = (existingTasks || []).map((task, i) => {
+		const newPageNumber = Math.floor((i + 1) / PAGE_SIZE) + 1;
+		const newPosition = (i + 1) % PAGE_SIZE;
+
+		return supabase
+			.from("tasks")
+			.update({
+				page_number: newPageNumber,
+				position: newPosition,
+				updated_at: now,
+			})
+			.eq("id", task.id);
+	});
+
+	// Insert new task at position 0
+	const insertPromise = supabase
 		.from("tasks")
 		.insert({
 			text,
@@ -85,8 +113,11 @@ export async function addTask(
 		.select()
 		.single();
 
-	if (error) throw error;
-	return data;
+	// Execute all operations in parallel
+	const [insertResult] = await Promise.all([insertPromise, ...updatePromises]);
+
+	if (insertResult.error) throw insertResult.error;
+	return insertResult.data;
 }
 
 export async function addMultipleTasks(
@@ -98,7 +129,37 @@ export async function addMultipleTasks(
 	}>,
 ): Promise<Task[]> {
 	const supabase = createClient();
-	const { data, error } = await supabase
+
+	// Shift all existing active tasks down
+	const { data: existingTasks } = await supabase
+		.from("tasks")
+		.select("*")
+		.in("status", ["active", "in-progress"])
+		.order("page_number", { ascending: true })
+		.order("position", { ascending: true });
+
+	const PAGE_SIZE = 12;
+	const shiftAmount = tasks.length;
+	const now = new Date().toISOString();
+
+	// Batch update all tasks in parallel
+	const updatePromises = (existingTasks || []).map((task, i) => {
+		const newIndex = i + shiftAmount;
+		const newPageNumber = Math.floor(newIndex / PAGE_SIZE) + 1;
+		const newPosition = newIndex % PAGE_SIZE;
+
+		return supabase
+			.from("tasks")
+			.update({
+				page_number: newPageNumber,
+				position: newPosition,
+				updated_at: now,
+			})
+			.eq("id", task.id);
+	});
+
+	// Insert new tasks at the top
+	const insertPromise = supabase
 		.from("tasks")
 		.insert(
 			tasks.map((t) => ({
@@ -111,8 +172,11 @@ export async function addMultipleTasks(
 		)
 		.select();
 
-	if (error) throw error;
-	return data || [];
+	// Execute all operations in parallel
+	const [insertResult] = await Promise.all([insertPromise, ...updatePromises]);
+
+	if (insertResult.error) throw insertResult.error;
+	return insertResult.data || [];
 }
 
 export async function updateTask(
