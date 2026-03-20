@@ -1,37 +1,36 @@
-export type TaskStatus = 'active' | 'in-progress' | 'completed'
-export type TimerState = 'idle' | 'running' | 'paused' | 'stopped'
+export type TaskStatus = "active" | "in-progress" | "completed";
+export type TimerState = "idle" | "running" | "paused" | "stopped";
+export type DefaultFilter = "all" | "none";
 
 export interface Task {
-  id: string
-  text: string
-  status: TaskStatus
-  page_number: number
-  position: number
-  added_at: string
-  completed_at: string | null
-  total_time_ms: number
-  re_entered_from: string | null
-  tag: "read" | "learn" | "finish" | null
-  created_at: string
-  updated_at: string
+	id: string;
+	text: string;
+	status: TaskStatus;
+	page_number: number;
+	position: number;
+	added_at: string;
+	completed_at: string | null;
+	total_time_ms: number;
+	re_entered_from: string | null;
+	tag: "read" | "learn" | "finish" | null;
+	created_at: string;
+	updated_at: string;
 }
 
 export interface AppState {
-  id: string
-  current_page: number
-  page_size: number
-  last_pass_had_no_action: boolean
-  working_on_task_id: string | nullnpm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
-  session_start_time: string | null
-  timer_state: TimerState
-  current_session_ms: number
-  created_at: string
-  updated_at: string
+	id: string;
+	current_page: number;
+	page_size: number;
+	last_pass_had_no_action: boolean;
+	working_on_task_id: string | null;
+	session_start_time: string | null;
+	timer_state: TimerState;
+	current_session_ms: number;
+	default_filter: DefaultFilter;
+	created_at: string;
+	updated_at: string;
 }
 
 export interface TaskWithTimer extends Task {
-  isWorking: boolean
+	isWorking: boolean;
 }
-
-
-

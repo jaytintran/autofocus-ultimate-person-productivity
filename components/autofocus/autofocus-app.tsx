@@ -9,8 +9,8 @@ import { PageNav } from "./page-nav";
 import { TaskList } from "./task-list";
 import { CompletedList } from "./completed-list";
 import { TaskInput } from "./task-input";
-import { BacklogDump } from "./backlog-dump";
-import { AboutSection } from "./about-section";
+// import { BacklogDump } from "./backlog-dump";
+// import { AboutSection } from "./about-section";
 import {
 	addMultipleTasks,
 	addTask,
@@ -191,12 +191,14 @@ export function AutofocusApp() {
 		new Set(),
 	);
 	const [currentPage, setCurrentPage] = useState(1);
+	const [filteredCurrentPage, setFilteredCurrentPage] = useState(1);
 	const [optimisticState, setOptimisticState] =
 		useState<OptimisticStateSnapshot | null>(null);
 	const [visibleTaskCapacity, setVisibleTaskCapacity] = useState(12);
 	const [prefetchedTasks, setPrefetchedTasks] = useState<Map<number, Task[]>>(
 		new Map(),
 	);
+	const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
 
 	// Fetch active tasks
 	const { data: activeTasks = [], mutate: mutateActive } = useSWR<Task[]>(
@@ -226,11 +228,53 @@ export function AutofocusApp() {
 		{ refreshInterval: 0 },
 	);
 
+	// Initialize filter from default preference
+	useEffect(() => {
+		if (appState && !hasInitializedFilter) {
+			if (appState.default_filter === "none") {
+				setSelectedTags(new Set(["none"]));
+			}
+			setHasInitializedFilter(true);
+		}
+	}, [appState, hasInitializedFilter]);
+
 	const displayedActiveTasks = optimisticState?.activeTasks ?? activeTasks;
 	const displayedCompletedTasks =
 		optimisticState?.completedTasks ?? completedTasks;
 	const displayedAppState = optimisticState?.appState ?? appState;
 	const displayedTotalPages = optimisticState?.totalPages ?? totalPages;
+
+	// Determine if filter is active
+	const isFilterActive = selectedTags.size > 0;
+
+	// Filter active tasks by selected tags
+	const filteredActiveTasks = useMemo(() => {
+		if (!isFilterActive) return displayedActiveTasks;
+
+		return displayedActiveTasks.filter((task) => {
+			if (selectedTags.has("none")) {
+				return task.tag === null;
+			}
+			return task.tag && selectedTags.has(task.tag);
+		});
+	}, [displayedActiveTasks, selectedTags, isFilterActive]);
+
+	// Calculate filtered total pages
+	const filteredTotalPages = useMemo(() => {
+		if (!isFilterActive) return displayedTotalPages;
+		return Math.max(
+			1,
+			Math.ceil(filteredActiveTasks.length / DEFAULT_TASK_CAPACITY),
+		);
+	}, [isFilterActive, filteredActiveTasks.length, displayedTotalPages]);
+
+	// Use filtered page and total when filter is active
+	const effectiveCurrentPage = isFilterActive
+		? filteredCurrentPage
+		: currentPage;
+	const effectiveTotalPages = isFilterActive
+		? filteredTotalPages
+		: displayedTotalPages;
 
 	// Pre-fetch adjacent pages (current + next 2 pages)
 	useEffect(() => {
@@ -262,14 +306,27 @@ export function AutofocusApp() {
 
 	// Get tasks for current page with prefetch fallback
 	const tasksForCurrentPage = useMemo(() => {
-		if (optimisticState) {
+		const sourceList = isFilterActive
+			? filteredActiveTasks
+			: displayedActiveTasks;
+		const pageNum = effectiveCurrentPage;
+
+		if (optimisticState && !isFilterActive) {
 			return optimisticState.activeTasks
-				.filter((task) => task.page_number === currentPage)
+				.filter((task) => task.page_number === pageNum)
 				.sort((a, b) => a.position - b.position);
 		}
 
-		const currentPageTasks = displayedActiveTasks
-			.filter((task) => task.page_number === currentPage)
+		if (isFilterActive) {
+			// For filtered view, re-paginate the filtered list
+			const startIndex = (pageNum - 1) * DEFAULT_TASK_CAPACITY;
+			const endIndex = startIndex + DEFAULT_TASK_CAPACITY;
+			return sourceList.slice(startIndex, endIndex);
+		}
+
+		// Unfiltered view - use original page_number logic
+		const currentPageTasks = sourceList
+			.filter((task) => task.page_number === pageNum)
 			.sort((a, b) => a.position - b.position);
 
 		if (activeTasks.length > 0) {
@@ -277,7 +334,7 @@ export function AutofocusApp() {
 		}
 
 		// Fall back to prefetched data only before the full active task list loads.
-		const prefetched = prefetchedTasks.get(currentPage);
+		const prefetched = prefetchedTasks.get(pageNum);
 		if (prefetched && prefetched.length > 0) {
 			return [...prefetched].sort((a, b) => a.position - b.position);
 		}
@@ -285,8 +342,10 @@ export function AutofocusApp() {
 		return currentPageTasks;
 	}, [
 		activeTasks.length,
-		currentPage,
+		effectiveCurrentPage,
 		displayedActiveTasks,
+		filteredActiveTasks,
+		isFilterActive,
 		optimisticState,
 		prefetchedTasks,
 	]);
@@ -1135,22 +1194,44 @@ export function AutofocusApp() {
 		return () => window.removeEventListener("resize", handleResize);
 	}, []);
 
-	const handleToggleTag = useCallback((tag: TagId | "none" | "all") => {
-		if (tag === "all") {
-			setSelectedTags(new Set());
-			return;
-		}
+	// Reset filtered page to 1 when filter changes
+	useEffect(() => {
+		setFilteredCurrentPage(1);
+	}, [selectedTags]);
 
+	// Ensure filtered current page is valid
+	useEffect(() => {
+		if (
+			isFilterActive &&
+			filteredCurrentPage > filteredTotalPages &&
+			filteredTotalPages > 0
+		) {
+			setFilteredCurrentPage(filteredTotalPages);
+		}
+	}, [isFilterActive, filteredCurrentPage, filteredTotalPages]);
+
+	const handleToggleTag = useCallback((tagId: TagId | "none") => {
 		setSelectedTags((prev) => {
 			const next = new Set(prev);
-			if (next.has(tag)) {
-				next.delete(tag);
+			if (next.has(tagId)) {
+				next.delete(tagId);
 			} else {
-				next.add(tag);
+				next.add(tagId);
 			}
 			return next;
 		});
 	}, []);
+
+	const handlePageChange = useCallback(
+		(page: number) => {
+			if (isFilterActive) {
+				setFilteredCurrentPage(page);
+			} else {
+				setCurrentPage(page);
+			}
+		},
+		[isFilterActive],
+	);
 
 	if (!displayedAppState) {
 		return (
@@ -1186,9 +1267,10 @@ export function AutofocusApp() {
 
 			{activeView === "tasks" && (
 				<PageNav
-					currentPage={currentPage}
-					totalPages={displayedTotalPages}
-					onPageChange={setCurrentPage}
+					currentPage={effectiveCurrentPage}
+					totalPages={effectiveTotalPages}
+					onPageChange={handlePageChange}
+					isFiltered={isFilterActive}
 				/>
 			)}
 

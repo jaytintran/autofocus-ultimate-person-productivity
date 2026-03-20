@@ -1,13 +1,16 @@
 "use client";
 
-import { Moon, Sun, Type } from "lucide-react";
+import { Moon, Sun, Settings, Type } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { AboutSection } from "./about-section";
+import { SettingsModal } from "./settings-modal";
 
 export function Header() {
 	const { theme, setTheme } = useTheme();
 	const [fontFamily, setFontFamily] = useState<"default" | "rubik">("default");
+	const [showAbout, setShowAbout] = useState(false);
+	const [showSettings, setShowSettings] = useState(false);
 
 	const toggleTheme = () => {
 		setTheme(theme === "dark" ? "light" : "dark");
@@ -50,6 +53,13 @@ export function Header() {
 			<div className="flex items-center gap-2">
 				<AboutSection />
 				<button
+					onClick={() => setShowSettings(true)}
+					className="p-2 hover:bg-accent rounded transition-colors"
+					aria-label="Settings"
+				>
+					<Settings className="w-4 h-4" />
+				</button>
+				<button
 					onClick={toggleFont}
 					className="p-2 hover:bg-accent rounded transition-colors"
 					aria-label="Toggle font"
@@ -73,6 +83,10 @@ export function Header() {
 					)}
 				</button>
 			</div>
+			<SettingsModal
+				isOpen={showSettings}
+				onClose={() => setShowSettings(false)}
+			/>
 		</header>
 	);
 }
