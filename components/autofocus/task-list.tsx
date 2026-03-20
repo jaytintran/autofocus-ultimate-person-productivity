@@ -48,23 +48,66 @@ function useIsMobile() {
 
 function useSwipeReveal() {
 	const [swiped, setSwiped] = useState(false);
+	const [dragOffset, setDragOffset] = useState(0);
 	const startXRef = useRef<number | null>(null);
+	const TRAY_WIDTH = 240;
 
-	const onTouchStart = useCallback((e: React.TouchEvent) => {
-		startXRef.current = e.touches[0].clientX;
+	const onTouchStart = useCallback(
+		(e: React.TouchEvent) => {
+			startXRef.current = e.touches[0].clientX;
+			setDragOffset(swiped ? -TRAY_WIDTH : 0);
+		},
+		[swiped],
+	);
+
+	const onTouchMove = useCallback(
+		(e: React.TouchEvent) => {
+			if (startXRef.current === null) return;
+			const diff = startXRef.current - e.touches[0].clientX;
+			const base = swiped ? -TRAY_WIDTH : 0;
+			// Clamp between fully closed (0) and fully open (-TRAY_WIDTH)
+			const next = Math.min(0, Math.max(-TRAY_WIDTH, base - diff));
+			setDragOffset(next);
+		},
+		[swiped],
+	);
+
+	const onTouchEnd = useCallback(
+		(e: React.TouchEvent) => {
+			if (startXRef.current === null) return;
+			const diff = startXRef.current - e.changedTouches[0].clientX;
+			// Snap open if dragged more than 40px left, snap closed if dragged more than 40px right
+			if (diff > 40) {
+				setSwiped(true);
+				setDragOffset(-TRAY_WIDTH);
+			} else if (diff < -40) {
+				setSwiped(false);
+				setDragOffset(0);
+			} else {
+				// Snap back to current state
+				setDragOffset(swiped ? -TRAY_WIDTH : 0);
+			}
+			startXRef.current = null;
+		},
+		[swiped],
+	);
+
+	const close = useCallback(() => {
+		setSwiped(false);
+		setDragOffset(0);
 	}, []);
 
-	const onTouchEnd = useCallback((e: React.TouchEvent) => {
-		if (startXRef.current === null) return;
-		const diff = startXRef.current - e.changedTouches[0].clientX;
-		if (diff > 40) setSwiped(true);
-		else if (diff < -40) setSwiped(false);
-		startXRef.current = null;
-	}, []);
+	const isDragging = startXRef.current !== null;
 
-	const close = useCallback(() => setSwiped(false), []);
-
-	return { swiped, onTouchStart, onTouchEnd, close };
+	return {
+		swiped,
+		dragOffset,
+		isDragging,
+		onTouchStart,
+		onTouchMove,
+		onTouchEnd,
+		close,
+	};
 }
 
 function getTaskAge(addedAt: string): string {
@@ -178,7 +221,15 @@ function TaskRow({
 	const reenterButtonRef = useRef<HTMLButtonElement>(null);
 
 	const isMobile = useIsMobile();
-	const { swiped, onTouchStart, onTouchEnd, close } = useSwipeReveal();
+	const {
+		swiped,
+		dragOffset,
+		isDragging: isSwipeDragging,
+		onTouchStart,
+		onTouchMove,
+		onTouchEnd,
+		close,
+	} = useSwipeReveal();
 
 	const {
 		attributes,
@@ -299,18 +350,18 @@ function TaskRow({
                 transition-colors overflow-hidden
             `}
 				onTouchStart={isMobile ? onTouchStart : undefined}
+				onTouchMove={isMobile ? onTouchMove : undefined}
 				onTouchEnd={isMobile ? onTouchEnd : undefined}
 			>
 				{/* Sliding wrapper — this moves left to reveal buttons behind it */}
 				<div
-					className={`
-					relative flex items-center gap-2 px-3 py-2.5 w-full
-					transition-transform duration-200 ease-out
-					${isMobile && swiped ? "-translate-x-[240px]" : "translate-x-0"}
-					${!isMobile && !isWorking ? "hover:bg-accent/50" : ""}
-					bg-background
-				`}
-					style={{ zIndex: 1 }}
+					className="relative flex items-center gap-2 px-3 py-2.5 w-full bg-background"
+					style={{
+						transform: isMobile ? `translateX(${dragOffset}px)` : undefined,
+						// Only use CSS transition when finger is lifted (snapping), not while dragging
+						transition: isSwipeDragging ? "none" : "transform 120ms ease-out",
+						zIndex: 1,
+					}}
 					onTouchEnd={
 						isMobile && swiped
 							? (e) => {
