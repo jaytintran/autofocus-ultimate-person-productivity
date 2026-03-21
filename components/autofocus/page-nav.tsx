@@ -15,10 +15,7 @@ function SecondBrainButton() {
 		<Tooltip.Provider>
 			<Tooltip.Root>
 				<Tooltip.Trigger asChild>
-					<Link
-						href="notion://www.notion.so/Object-Types-31fa0f71b1028081a7b1fb21811f82b0"
-						target="_blank"
-					>
+					<Link href="notion://www.notion.so/Object-Types-31fa0f71b1028081a7b1fb21811f82b0">
 						<button className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-full p-1.75 hover:bg-accent transition-colors">
 							<LibraryBig className="w-4 h-4" />
 						</button>
