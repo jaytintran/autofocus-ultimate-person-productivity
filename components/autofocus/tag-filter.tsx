@@ -20,7 +20,7 @@ export function TagFilter({ selectedTags, onToggleTag }: TagFilterProps) {
 	const isAllSelected = selectedTags.size === 0;
 
 	const getButtonLabel = () => {
-		if (isAllSelected) return "All Tags";
+		if (isAllSelected) return "All 🏷️";
 		if (selectedTags.size === 1) {
 			if (selectedTags.has("none")) return "No 🏷️";
 			const tagId = Array.from(selectedTags)[0] as TagId;
@@ -33,9 +33,9 @@ export function TagFilter({ selectedTags, onToggleTag }: TagFilterProps) {
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size="sm" className="h-8 gap-2">
+				<Button variant="outline" size="sm" className="h-8 rounded">
 					<span className="text-sm">{getButtonLabel()}</span>
-					<ChevronDown className="w-3.5 h-3.5 opacity-50" />
+					<ChevronDown className="w-3 h-3 opacity-50 -ml-1 -mr-1" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent className="w-48 p-2" align="end">
@@ -49,7 +49,7 @@ export function TagFilter({ selectedTags, onToggleTag }: TagFilterProps) {
 							isAllSelected ? "bg-[#8b9a6b] text-white" : "hover:bg-accent"
 						}`}
 					>
-						<span>All Tags</span>
+						<span>All 🏷️</span>
 					</button>
 
 					<div className="border-t my-1" />

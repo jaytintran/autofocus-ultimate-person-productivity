@@ -60,10 +60,10 @@ export function BacklogDump({ onAddTasks, selectedTags }: BacklogDumpProps) {
 				variant="outline"
 				size="sm"
 				onClick={() => setIsOpen(true)}
-				className="h-8 gap-2"
+				className="h-8 rounded"
 			>
 				<ListPlus className="w-3.5 h-3.5" />
-				<span className="text-sm">Bulk Add</span>
+				<span className="text-sm">Bulk +</span>
 			</Button>
 
 			<Dialog open={isOpen} onOpenChange={setIsOpen}>

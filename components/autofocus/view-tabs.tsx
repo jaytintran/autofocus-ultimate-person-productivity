@@ -20,11 +20,11 @@ export function ViewTabs({
 	onAddTasks,
 }: ViewTabsProps) {
 	return (
-		<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-3">
+		<div className="flex flex-row justify-between sm:flex-row sm:items-center sm:justify-between px-4 py-3">
 			<div className="inline-flex bg-secondary rounded overflow-hidden w-fit">
 				<button
 					onClick={() => onViewChange("tasks")}
-					className={`px-4 py-1.5 text-sm transition-colors ${
+					className={`px-3 py-1.5 text-sm transition-colors ${
 						activeView === "tasks"
 							? "bg-accent text-foreground"
 							: "text-muted-foreground hover:text-foreground"
@@ -34,7 +34,7 @@ export function ViewTabs({
 				</button>
 				<button
 					onClick={() => onViewChange("completed")}
-					className={`px-4 py-1.5 text-sm transition-colors ${
+					className={`px-3 py-1.5 text-sm transition-colors ${
 						activeView === "completed"
 							? "bg-accent text-foreground"
 							: "text-muted-foreground hover:text-foreground"
