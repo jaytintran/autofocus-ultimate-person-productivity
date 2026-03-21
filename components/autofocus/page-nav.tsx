@@ -16,7 +16,7 @@ function SecondBrainButton() {
 			<Tooltip.Root>
 				<Tooltip.Trigger asChild>
 					<Link
-						href="https://www.notion.so/Object-Types-31fa0f71b1028081a7b1fb21811f82b0?source=copy_link"
+						href="notion://www.notion.so/Object-Types-31fa0f71b1028081a7b1fb21811f82b0"
 						target="_blank"
 					>
 						<button className="text-xs text-muted-foreground hover:text-foreground border border-border rounded-full p-1.75 hover:bg-accent transition-colors">
@@ -30,7 +30,7 @@ function SecondBrainButton() {
 						side="top"
 						className="bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-md"
 					>
-						Open Docs
+						Open Second Brain
 						<Tooltip.Arrow className="fill-foreground" />
 					</Tooltip.Content>
 				</Tooltip.Portal>
