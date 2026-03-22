@@ -73,9 +73,21 @@ export function TaskInput({ onAddTask, selectedTags }: TaskInputProps) {
 		const trimmed = text.trim();
 		if (!trimmed) return;
 
+		const EXEMPT_WORDS = new Set(["a", "an", "and", "of", "the", "và"]);
+
 		const capitalized = trimmed
 			.split(" ")
-			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+			.map((word, index) => {
+				// Always capitalize the first word regardless
+				if (index === 0) {
+					return word.charAt(0).toUpperCase() + word.slice(1);
+				}
+				// Exempt small words stay lowercase
+				if (EXEMPT_WORDS.has(word.toLowerCase())) {
+					return word.toLowerCase();
+				}
+				return word.charAt(0).toUpperCase() + word.slice(1);
+			})
 			.join(" ");
 
 		setText("");
