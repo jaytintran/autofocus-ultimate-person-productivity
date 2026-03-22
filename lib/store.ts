@@ -813,7 +813,7 @@ export async function startTask(taskId: string): Promise<AppState> {
 
 export async function updateTaskTag(
 	taskId: string,
-	tag: "read" | "learn" | "finish" | null,
+	tag: TagId | null,
 ): Promise<void> {
 	const supabase = createClient();
 	const { error } = await supabase
