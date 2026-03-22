@@ -12,16 +12,23 @@ import {
 	Lightbulb,
 	NotebookPen,
 	Inbox,
+	Repeat,
 } from "lucide-react";
 import Link from "next/link";
 import * as Tooltip from "@radix-ui/react-tooltip";
 
 const NOTION_PAGES = [
 	{
-		label: "Received Thoughts",
+		label: "Capturer",
 		description: "Capturing thoughts & flashes",
 		icon: Inbox,
 		href: "notion://www.notion.so/32aa0f71b1028092ba0dc76db7752f9d?v=32aa0f71b1028009a540000cff473e9e&source=copy_link",
+	},
+	{
+		label: "Habits",
+		description: "Current habits to deploy daily",
+		icon: Repeat,
+		href: "notion://https://www.notion.so/326a0f71b102807cbb3ed7de5007a8aa?v=326a0f71b10280079115000ccf71dd99&source=copy_link",
 	},
 	{
 		label: "Books",

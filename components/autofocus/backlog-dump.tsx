@@ -10,6 +10,7 @@ import {
 	DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { TagId } from "@/lib/tags";
 
 interface BacklogDumpProps {
 	onAddTasks: (tasks: string[], tag?: TagId | null) => Promise<void>;
