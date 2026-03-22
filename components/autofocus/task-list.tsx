@@ -944,7 +944,10 @@ export function TaskList({
 
 	return (
 		<div ref={containerRef} className="flex-1 flex flex-col min-h-0">
-			<div className="flex-1 overflow-y-auto">
+			<div
+				className="flex-1 overflow-y-auto"
+				style={{ scrollbarWidth: "thin" }}
+			>
 				<DndContext
 					sensors={sensors}
 					collisionDetection={closestCenter}
