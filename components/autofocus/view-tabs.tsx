@@ -16,6 +16,7 @@ import {
 	AlarmClock,
 	ArrowUpDown,
 	LayoutList,
+	CalendarDays,
 } from "lucide-react";
 
 export type CompletedSortKey =
@@ -23,6 +24,8 @@ export type CompletedSortKey =
 	| "completed_desc"
 	| "completed_asc"
 	| "time_spent_desc";
+
+export type CompletedViewType = "default" | "7days";
 
 const SORT_OPTIONS: {
 	key: CompletedSortKey;
@@ -38,6 +41,11 @@ const SORT_OPTIONS: {
 interface SortSelectorProps {
 	value: CompletedSortKey;
 	onChange: (sort: CompletedSortKey) => void;
+}
+
+interface ViewTypeToggleProps {
+	value: CompletedViewType;
+	onChange: (view: CompletedViewType) => void;
 }
 
 function SortSelector({ value, onChange }: SortSelectorProps) {
@@ -79,6 +87,39 @@ function SortSelector({ value, onChange }: SortSelectorProps) {
 	);
 }
 
+function ViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
+	return (
+		<div className="inline-flex bg-secondary rounded overflow-hidden">
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => onChange("default")}
+				className={`h-8 rounded text-xs transition-colors ${
+					value === "default"
+						? "!bg-accent text-foreground"
+						: "text-muted-foreground hover:text-foreground"
+				}`}
+				title="Default view"
+			>
+				<LayoutList className="w-3 h-3" />
+			</Button>
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => onChange("7days")}
+				className={`h-8 rounded text-xs transition-colors ${
+					value === "7days"
+						? "!bg-accent text-foreground"
+						: "text-muted-foreground hover:text-foreground"
+				}`}
+				title="7 days view"
+			>
+				<CalendarDays className="w-3.5 h-3.5" />
+			</Button>
+		</div>
+	);
+}
+
 interface ViewTabsProps {
 	activeView: "tasks" | "completed";
 	onViewChange: (view: "tasks" | "completed") => void;
@@ -87,9 +128,11 @@ interface ViewTabsProps {
 	onAddTasks: (tasks: string[], tag?: TagId | null) => Promise<void>;
 	completedSort: CompletedSortKey;
 	onCompletedSortChange: (sort: CompletedSortKey) => void;
+	completedViewType: CompletedViewType;
+	onCompletedViewTypeChange: (view: CompletedViewType) => void;
 }
 
-export function ViewTabs({
+export function ViewTabsOld({
 	activeView,
 	onViewChange,
 	selectedTags,
@@ -137,6 +180,64 @@ export function ViewTabs({
 					/>
 				)}
 
+				<TagFilter selectedTags={selectedTags} onToggleTag={onToggleTag} />
+			</div>
+		</div>
+	);
+}
+
+export function ViewTabs({
+	activeView,
+	onViewChange,
+	selectedTags,
+	onToggleTag,
+	onAddTasks,
+	completedSort,
+	onCompletedSortChange,
+	completedViewType,
+	onCompletedViewTypeChange,
+}: ViewTabsProps) {
+	return (
+		<div className="flex flex-row justify-between sm:flex-row sm:items-center sm:justify-between px-4 py-3">
+			<div className="inline-flex bg-secondary rounded overflow-hidden w-fit">
+				<button
+					onClick={() => onViewChange("tasks")}
+					className={`px-3 py-1.5 text-sm transition-colors ${
+						activeView === "tasks"
+							? "bg-accent text-foreground"
+							: "text-muted-foreground hover:text-foreground"
+					}`}
+				>
+					Tasks
+				</button>
+				<button
+					onClick={() => onViewChange("completed")}
+					className={`px-3 py-1.5 text-sm transition-colors ${
+						activeView === "completed"
+							? "bg-accent text-foreground"
+							: "text-muted-foreground hover:text-foreground"
+					}`}
+				>
+					Completed
+				</button>
+			</div>
+
+			<div className="flex items-center gap-2">
+				{activeView === "tasks" && (
+					<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
+				)}
+				{activeView === "completed" && (
+					<>
+						<ViewTypeToggle
+							value={completedViewType}
+							onChange={onCompletedViewTypeChange}
+						/>
+						<SortSelector
+							value={completedSort}
+							onChange={onCompletedSortChange}
+						/>
+					</>
+				)}
 				<TagFilter selectedTags={selectedTags} onToggleTag={onToggleTag} />
 			</div>
 		</div>

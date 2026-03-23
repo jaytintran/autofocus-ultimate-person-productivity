@@ -9,6 +9,7 @@ import { TagPill } from "./tag-pill";
 import type { Task } from "@/lib/types";
 import type { TagId } from "@/lib/tags";
 import type { CompletedSortKey } from "./view-tabs";
+import type { CompletedViewType } from "./view-tabs";
 
 import {
 	Dialog,
@@ -26,6 +27,7 @@ interface CompletedListProps {
 	hasMore: boolean;
 	isLoadingMore: boolean;
 	onLoadMore: () => void;
+	completedViewType: CompletedViewType;
 }
 
 function formatCompletionTime(dateString: string): string {
@@ -145,6 +147,7 @@ export function CompletedList({
 	tasks,
 	selectedTags,
 	completedSort,
+	completedViewType,
 	hasMore,
 	isLoadingMore,
 	onLoadMore,
@@ -259,6 +262,33 @@ export function CompletedList({
 		return result;
 	}, [filteredTasks, completedSort]);
 
+	// Build 7-day columns for the column view
+	const sevenDayColumns = useMemo(() => {
+		const today = new Date();
+		const columns = Array.from({ length: 7 }, (_, i) => {
+			const date = new Date(today);
+			date.setDate(today.getDate() - i);
+			const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+			const dayName =
+				i === 0
+					? "Today"
+					: i === 1
+						? "Yesterday"
+						: date.toLocaleDateString("en-GB", { weekday: "short" });
+			const dayNum = date.getDate().toString().padStart(2, "0");
+			const month = (date.getMonth() + 1).toString().padStart(2, "0");
+			return {
+				key,
+				label: dayName,
+				date: `${dayNum}/${month}`,
+				tasks: filteredTasks.filter(
+					(task) => task.completed_at && getDateKey(task.completed_at) === key,
+				),
+			};
+		});
+		return columns;
+	}, [filteredTasks]);
+
 	const handleRevert = useCallback(
 		async (task: Task) => {
 			if (loadingTaskId) return;
@@ -311,162 +341,260 @@ export function CompletedList({
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
 			<div className="flex-1 overflow-y-auto">
-				{groupedTasks.map((group) => (
-					<div key={group.dateKey} className="mb-4">
-						{/* Date header */}
-						<div className="px-4 py-2 bg-secondary/50 border-b border-border sticky top-0 z-10">
-							<span className="text-sm text-muted-foreground font-medium">
-								{group.dateLabel}
-							</span>
-						</div>
+				{completedViewType === "7days" ? (
+					// 7-day column view
+					<div className="grid grid-cols-7 divide-x divide-border h-full min-h-[400px]">
+						{sevenDayColumns.map((col) => (
+							<div key={col.key} className="flex flex-col min-w-0">
+								{/* Column header */}
+								<div className="px-2 py-2 border-b border-border bg-secondary/50 sticky top-0 z-10 text-center">
+									<p className="text-xs font-medium text-foreground">
+										{col.label}
+									</p>
+									<p className="text-[10px] text-muted-foreground">
+										{col.date}
+									</p>
+								</div>
 
-						{/* Time blocks within this date */}
-						{group.timeBlocks.map((timeBlock) => {
-							const Icon = timeBlock.icon;
-							return (
-								<div
-									key={timeBlock.period}
-									className={`flex gap-3 ${getTimePeriodColor(timeBlock.period)} py-2 px-3`}
-								>
-									{/* Time period icon on the left - vertically centered */}
-									<div className="flex items-center">
-										<Icon
-											className={`w-4 h-4 ${getTimePeriodIconColor(timeBlock.period)}`}
-										/>
-									</div>
-
-									{/* Tasks in this time block */}
-									<div className="flex-1 min-w-0">
-										<ul className="divide-y divide-border/50">
-											{timeBlock.tasks.map((task) => {
-												const isLoading = task.id === loadingTaskId;
-
-												return (
-													<li
-														key={task.id}
-														className={`
-															group py-2.5 flex items-center gap-3
-															${isLoading ? "opacity-50" : ""}
-														`}
-													>
-														{/* Checkmark */}
-														<span className="text-[#8b9a6b] flex-shrink-0">
-															✓
-														</span>
-
-														{/* Task text */}
-														<span
-															ref={(el) => {
-																if (el && task.id) {
-																	textRefs.current[task.id] = el;
-																}
-															}}
-															className="flex-1 truncate text-muted-foreground line-through cursor-pointer hover:text-foreground/70 transition-colors"
-															onClick={() => {
-																const element = textRefs.current[task.id];
-																if (
-																	element &&
-																	element.scrollWidth > element.clientWidth
-																) {
-																	setShowTaskModal(task.id);
-																}
-															}}
-															title="Click to view full text"
-														>
-															{task.text}
-														</span>
-
-														{/* Time spent */}
-														{task.total_time_ms > 0 && (
-															<span className="text-xs text-[#8b9a6b] flex-shrink-0">
-																{formatTimeCompact(task.total_time_ms)}
-															</span>
-														)}
-
-														{/* Completion time */}
+								{/* Column tasks */}
+								<div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+									{col.tasks.length === 0 ? (
+										<p className="text-[10px] text-muted-foreground text-center mt-4 px-1 opacity-50">
+											—
+										</p>
+									) : (
+										col.tasks.map((task) => {
+											const isLoading = task.id === loadingTaskId;
+											return (
+												<div
+													key={task.id}
+													className={`
+													group rounded-lg px-2 py-1.5 text-[11px]
+													bg-secondary/50 hover:bg-secondary
+													transition-colors space-y-1
+													${isLoading ? "opacity-50" : ""}
+												`}
+												>
+													<p className="text-foreground line-through opacity-60 leading-snug break-words">
+														{task.text}
+													</p>
+													<div className="flex items-center gap-1 flex-wrap">
 														{task.completed_at && (
-															<span className="text-xs text-muted-foreground flex-shrink-0">
+															<span className="text-muted-foreground opacity-60">
 																{formatCompletionTime(task.completed_at)}
 															</span>
 														)}
-
-														{/* Tag pill */}
+														{task.total_time_ms > 0 && (
+															<span className="text-[#8b9a6b]">
+																{formatTimeCompact(task.total_time_ms)}
+															</span>
+														)}
 														{task.tag && (
 															<TagPill
 																tagId={task.tag}
-																className="flex-shrink-0"
+																className="scale-90 origin-left"
 															/>
 														)}
-
-														{/* Action buttons */}
-														<div className="flex items-center gap-1 flex-shrink-0">
-															{/* Revert button */}
-															<button
-																type="button"
-																onClick={() => handleRevert(task)}
-																disabled={isLoading}
-																className="p-1.5 hover:bg-accent rounded-sm transition-colors disabled:opacity-50"
-																title="Re-enter task"
-															>
-																<RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
-															</button>
-
-															{/* Delete button */}
-															<button
-																type="button"
-																onClick={() => handleDelete(task.id)}
-																disabled={isLoading}
-																className={`p-1.5 rounded-sm transition-colors disabled:opacity-50 ${
+													</div>
+													{/* Actions */}
+													<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+														<button
+															type="button"
+															onClick={() => handleRevert(task)}
+															disabled={isLoading}
+															className="p-0.5 hover:bg-accent rounded transition-colors"
+															title="Revert task"
+														>
+															<RotateCcw className="w-3 h-3 text-muted-foreground" />
+														</button>
+														<button
+															type="button"
+															onClick={() => handleDelete(task.id)}
+															disabled={isLoading}
+															className={`p-0.5 rounded transition-colors ${
+																showDeleteConfirm === task.id
+																	? "bg-destructive/20"
+																	: "hover:bg-accent"
+															}`}
+															title="Delete task"
+														>
+															<Trash2
+																className={`w-3 h-3 ${
 																	showDeleteConfirm === task.id
-																		? "bg-destructive/20 hover:bg-destructive/30"
-																		: "hover:bg-accent"
+																		? "text-destructive"
+																		: "text-muted-foreground"
 																}`}
-																title={
-																	showDeleteConfirm === task.id
-																		? "Click again to confirm"
-																		: "Delete task"
-																}
-															>
-																<Trash2
-																	className={`w-3.5 h-3.5 ${
-																		showDeleteConfirm === task.id
-																			? "text-destructive"
-																			: "text-muted-foreground"
-																	}`}
-																/>
-															</button>
-														</div>
-													</li>
-												);
-											})}
-										</ul>
-									</div>
+															/>
+														</button>
+													</div>
+												</div>
+											);
+										})
+									)}
 								</div>
-							);
-						})}
+							</div>
+						))}
 					</div>
-				))}
+				) : (
+					<>
+						{groupedTasks.map((group) => (
+							<div key={group.dateKey} className="mb-4">
+								{/* Date header */}
+								<div className="px-4 py-2 bg-secondary/50 border-b border-border sticky top-0 z-10">
+									<span className="text-sm text-muted-foreground font-medium">
+										{group.dateLabel}
+									</span>
+								</div>
 
-				{/* Load More */}
-				{hasMore && (
-					<div className="flex justify-center py-6">
-						<button
-							type="button"
-							onClick={onLoadMore}
-							disabled={isLoadingMore}
-							className="px-4 py-2 text-sm border border-border rounded-full hover:bg-accent transition-colors disabled:opacity-50 text-muted-foreground"
-						>
-							{isLoadingMore ? "Loading..." : "Load more"}
-						</button>
-					</div>
-				)}
+								{/* Time blocks within this date */}
+								{group.timeBlocks.map((timeBlock) => {
+									const Icon = timeBlock.icon;
+									return (
+										<div
+											key={timeBlock.period}
+											className={`flex gap-3 ${getTimePeriodColor(timeBlock.period)} py-2 px-3`}
+										>
+											{/* Time period icon on the left - vertically centered */}
+											<div className="flex items-center">
+												<Icon
+													className={`w-4 h-4 ${getTimePeriodIconColor(timeBlock.period)}`}
+												/>
+											</div>
 
-				{!hasMore && tasks.length > 0 && (
-					<div className="flex justify-center py-6">
-						<p className="text-xs text-muted-foreground">
-							All completed tasks loaded 🎉
-						</p>
-					</div>
+											{/* Tasks in this time block */}
+											<div className="flex-1 min-w-0">
+												<ul className="divide-y divide-border/50">
+													{timeBlock.tasks.map((task) => {
+														const isLoading = task.id === loadingTaskId;
+
+														return (
+															<li
+																key={task.id}
+																className={`
+															group py-2.5 flex items-center gap-3
+															${isLoading ? "opacity-50" : ""}
+														`}
+															>
+																{/* Checkmark */}
+																<span className="text-[#8b9a6b] flex-shrink-0">
+																	✓
+																</span>
+
+																{/* Task text */}
+																<span
+																	ref={(el) => {
+																		if (el && task.id) {
+																			textRefs.current[task.id] = el;
+																		}
+																	}}
+																	className="flex-1 truncate text-muted-foreground line-through cursor-pointer hover:text-foreground/70 transition-colors"
+																	onClick={() => {
+																		const element = textRefs.current[task.id];
+																		if (
+																			element &&
+																			element.scrollWidth > element.clientWidth
+																		) {
+																			setShowTaskModal(task.id);
+																		}
+																	}}
+																	title="Click to view full text"
+																>
+																	{task.text}
+																</span>
+
+																{/* Time spent */}
+																{task.total_time_ms > 0 && (
+																	<span className="text-xs text-[#8b9a6b] flex-shrink-0">
+																		{formatTimeCompact(task.total_time_ms)}
+																	</span>
+																)}
+
+																{/* Completion time */}
+																{task.completed_at && (
+																	<span className="text-xs text-muted-foreground flex-shrink-0">
+																		{formatCompletionTime(task.completed_at)}
+																	</span>
+																)}
+
+																{/* Tag pill */}
+																{task.tag && (
+																	<TagPill
+																		tagId={task.tag}
+																		className="flex-shrink-0"
+																	/>
+																)}
+
+																{/* Action buttons */}
+																<div className="flex items-center gap-1 flex-shrink-0">
+																	{/* Revert button */}
+																	<button
+																		type="button"
+																		onClick={() => handleRevert(task)}
+																		disabled={isLoading}
+																		className="p-1.5 hover:bg-accent rounded-sm transition-colors disabled:opacity-50"
+																		title="Re-enter task"
+																	>
+																		<RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
+																	</button>
+
+																	{/* Delete button */}
+																	<button
+																		type="button"
+																		onClick={() => handleDelete(task.id)}
+																		disabled={isLoading}
+																		className={`p-1.5 rounded-sm transition-colors disabled:opacity-50 ${
+																			showDeleteConfirm === task.id
+																				? "bg-destructive/20 hover:bg-destructive/30"
+																				: "hover:bg-accent"
+																		}`}
+																		title={
+																			showDeleteConfirm === task.id
+																				? "Click again to confirm"
+																				: "Delete task"
+																		}
+																	>
+																		<Trash2
+																			className={`w-3.5 h-3.5 ${
+																				showDeleteConfirm === task.id
+																					? "text-destructive"
+																					: "text-muted-foreground"
+																			}`}
+																		/>
+																	</button>
+																</div>
+															</li>
+														);
+													})}
+												</ul>
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						))}
+
+						{/* Load More */}
+						{hasMore && (
+							<div className="flex justify-center py-6">
+								<button
+									type="button"
+									onClick={onLoadMore}
+									disabled={isLoadingMore}
+									className="px-4 py-2 text-sm border border-border rounded-full hover:bg-accent transition-colors disabled:opacity-50 text-muted-foreground"
+								>
+									{isLoadingMore ? "Loading..." : "Load more"}
+								</button>
+							</div>
+						)}
+
+						{!hasMore && tasks.length > 0 && (
+							<div className="flex justify-center py-6">
+								<p className="text-xs text-muted-foreground">
+									All completed tasks loaded 🎉
+								</p>
+							</div>
+						)}
+					</>
 				)}
 			</div>
 

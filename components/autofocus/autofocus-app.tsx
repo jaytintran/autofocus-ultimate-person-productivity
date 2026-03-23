@@ -32,7 +32,7 @@ import {
 	updateTask,
 } from "@/lib/store";
 import type { Task, AppState, TaskStatus } from "@/lib/types";
-import { type CompletedSortKey } from "./view-tabs";
+import { type CompletedSortKey, type CompletedViewType } from "./view-tabs";
 import { TagId } from "@/lib/tags";
 
 const DEFAULT_TASK_CAPACITY = 12;
@@ -204,6 +204,8 @@ export function AutofocusApp() {
 	const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
 	const [completedSort, setCompletedSort] =
 		useState<CompletedSortKey>("default");
+	const [completedViewType, setCompletedViewType] =
+		useState<CompletedViewType>("default");
 
 	// Fetch active tasks
 	const { data: activeTasks = [], mutate: mutateActive } = useSWR<Task[]>(
@@ -1885,6 +1887,8 @@ export function AutofocusApp() {
 				onAddTasks={handleAddTasks}
 				completedSort={completedSort}
 				onCompletedSortChange={setCompletedSort}
+				completedViewType={completedViewType}
+				onCompletedViewTypeChange={setCompletedViewType}
 			/>
 
 			{activeView === "tasks" && (
@@ -1917,6 +1921,7 @@ export function AutofocusApp() {
 						tasks={displayedCompletedTasks}
 						selectedTags={selectedTags}
 						completedSort={completedSort}
+						completedViewType={completedViewType}
 						hasMore={hasMoreCompleted}
 						isLoadingMore={isLoadingMore}
 						onLoadMore={handleLoadMoreCompleted}
