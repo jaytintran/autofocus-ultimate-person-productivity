@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, KeyboardEvent, useEffect } from "react";
 import { Plus, Send } from "lucide-react";
 import { TAG_DEFINITIONS, getTagDefinition, type TagId } from "@/lib/tags";
+import { Task } from "@/lib/types";
 
 const TEMPLATES = [
 	{ label: "Go", text: "🏍️ Go to " },
@@ -76,7 +77,7 @@ function TagMentionDropdown({ query, onSelect }: TagMentionDropdownProps) {
 }
 
 interface TaskInputProps {
-	onAddTask: (text: string, tag?: TagId | null) => Promise<void>;
+	onAddTask: (text: string, tag?: TagId | null) => Promise<Task | null>;
 	selectedTags?: Set<TagId | "none">;
 }
 

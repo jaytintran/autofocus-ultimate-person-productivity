@@ -17,23 +17,6 @@ const rubik = Rubik({
 export const metadata: Metadata = {
 	title: "Autofocus | Bring Order to Chaos",
 	description: "AF4 - One list. One task. Trust the process.",
-	icons: {
-		icon: [
-			{
-				url: "/icon-light-32x32.png",
-				media: "(prefers-color-scheme: light)",
-			},
-			{
-				url: "/icon-dark-32x32.png",
-				media: "(prefers-color-scheme: dark)",
-			},
-			{
-				url: "/icon.svg",
-				type: "image/svg+xml",
-			},
-		],
-		apple: "/apple-icon.png",
-	},
 };
 
 export default function RootLayout({
@@ -47,6 +30,9 @@ export default function RootLayout({
 			suppressHydrationWarning
 			className={`${geistMono.variable} ${rubik.variable}`}
 		>
+			<head>
+				<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+			</head>
 			<body className="font-sans antialiased">
 				<ThemeProvider
 					attribute="class"

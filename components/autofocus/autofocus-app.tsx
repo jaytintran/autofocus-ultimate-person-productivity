@@ -481,7 +481,7 @@ export function AutofocusApp() {
 	const handleAddTask = useCallback(
 		async (text: string, tag?: TagId | null) => {
 			const trimmedText = text.trim();
-			if (!trimmedText || !displayedAppState) return;
+			if (!trimmedText || !displayedAppState) return null;
 
 			const now = new Date().toISOString();
 			const optimisticTask = {
@@ -521,19 +521,33 @@ export function AutofocusApp() {
 			});
 
 			// Fire and forget - don't await
-			addTask(trimmedText, 1, 0, tag ?? null)
-				.then(async () => {
-					await mutateActive();
-					await mutateTotalPages();
-					// Clear optimistic state AFTER mutations complete
-					setOptimisticState(null);
-				})
-				.catch(async (error) => {
-					console.error("Failed to add task:", error);
-					await mutateActive();
-					await mutateTotalPages();
-					setOptimisticState(null);
-				});
+			// addTask(trimmedText, 1, 0, tag ?? null)
+			// 	.then(async () => {
+			// 		await mutateActive();
+			// 		await mutateTotalPages();
+			// 		// Clear optimistic state AFTER mutations complete
+			// 		setOptimisticState(null);
+			// 	})
+			// 	.catch(async (error) => {
+			// 		console.error("Failed to add task:", error);
+			// 		await mutateActive();
+			// 		await mutateTotalPages();
+			// 		setOptimisticState(null);
+			// 	});
+
+			try {
+				const createdTask = await addTask(trimmedText, 1, 0, tag ?? null);
+				await mutateActive();
+				await mutateTotalPages();
+				setOptimisticState(null);
+				return createdTask;
+			} catch (error) {
+				console.error("Failed to add task:", error);
+				await mutateActive();
+				await mutateTotalPages();
+				setOptimisticState(null);
+				return null;
+			}
 		},
 		[
 			displayedActiveTasks,
@@ -1203,6 +1217,83 @@ export function AutofocusApp() {
 			displayedCompletedTasks,
 			displayedTotalPages,
 			runOptimisticUpdate,
+		],
+	);
+
+	const handleAddTaskAndStart = useCallback(
+		async (text: string, tag?: TagId | null): Promise<Task | null> => {
+			const trimmedText = text.trim();
+			if (!trimmedText || !displayedAppState) return null;
+
+			const now = new Date().toISOString();
+			const newTaskId = crypto.randomUUID();
+
+			const optimisticTask: Task = {
+				id: newTaskId,
+				text: trimmedText,
+				status: "in-progress" as TaskStatus,
+				page_number: 1,
+				position: 0,
+				added_at: now,
+				completed_at: null,
+				total_time_ms: 0,
+				re_entered_from: null,
+				created_at: now,
+				updated_at: now,
+				tag: tag ?? null,
+			};
+
+			const shiftedTasks = displayedActiveTasks.map((task, index) => ({
+				...task,
+				page_number: Math.floor((index + 1) / DEFAULT_TASK_CAPACITY) + 1,
+				position: (index + 1) % DEFAULT_TASK_CAPACITY,
+				updated_at: now,
+			}));
+
+			const optimisticActiveTasks = [optimisticTask, ...shiftedTasks];
+
+			setPrefetchedTasks(new Map());
+			setCurrentPage(1);
+
+			// Set optimistic state with working task immediately — zero flicker
+			setOptimisticState({
+				activeTasks: optimisticActiveTasks,
+				completedTasks: displayedCompletedTasks,
+				appState: {
+					...displayedAppState,
+					working_on_task_id: newTaskId,
+					timer_state: "idle",
+					current_session_ms: 0,
+					session_start_time: null,
+					updated_at: now,
+				},
+				totalPages: getVisibleTotalPages(optimisticActiveTasks),
+			});
+
+			try {
+				// Create task then immediately start it — two calls but UI already shows result
+				const createdTask = await addTask(trimmedText, 1, 0, tag ?? null);
+				await startTask(createdTask.id);
+				await mutateActive();
+				await mutateAppState();
+				await mutateTotalPages();
+				setOptimisticState(null);
+				return createdTask;
+			} catch (error) {
+				console.error("Failed to add and start task:", error);
+				await refreshAll();
+				setOptimisticState(null);
+				return null;
+			}
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			mutateActive,
+			mutateAppState,
+			mutateTotalPages,
+			refreshAll,
 		],
 	);
 
@@ -1957,6 +2048,10 @@ export function AutofocusApp() {
 				onCompleteTask={handleCompleteWorkingTask}
 				onCancelTask={handleCancelWorkingTask}
 				onReenterTask={handlePanelReenterTask}
+				onAddTask={handleAddTask}
+				onAddTaskAndStart={handleAddTaskAndStart}
+				onStartTask={handleStartTask}
+				activeTasks={displayedActiveTasks}
 			/>
 
 			<ViewTabs
