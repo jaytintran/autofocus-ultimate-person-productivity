@@ -63,7 +63,7 @@ const TAG_GUIDE = [
 		emoji: "🔧",
 		label: "Handle",
 		description:
-			"Admin, maintenance, and one-time errands with no creative arc. Neither grand enough for Finish nor small enough for Quick. These are things that just need dealing with — practical, unglamorous, necessary.",
+			"Quick is frictionless and immediate, Handle is still one-shot but has more administrative weight to it. 'Wash the dishes' is Quick. 'Renew the car insurance' looks quick but often has steps, waiting, and follow-up — that's Handle territory. Re-enters because of waiting periods and external dependencies — the insurance form needs a document you don't have yet, the repair needs a part to arrive. Unlike Quick, this is expected. Unlike Finish, there's no creative output — just resolution. Keep re-entering until it closes.",
 		examples: [
 			"Handle passport renewal",
 			"Handle the car insurance renewal",
@@ -71,7 +71,7 @@ const TAG_GUIDE = [
 			"Handle the Supabase billing issue",
 			"Handle the visa application documents",
 		],
-		note: null,
+		note: "If you find yourself thinking 'this should be quick but keeps not getting done' — it's probably a Handle, not a Quick.",
 	},
 ];
 
@@ -101,7 +101,7 @@ function TagGuideDialog({
 							{ emoji: "🎯", q: "What does done look like?" },
 							{ emoji: "🧭", q: "What will I learn?" },
 							{ emoji: "⚡", q: "Can I knock this out now?" },
-							{ emoji: "🔧", q: "Does this just need handling?" },
+							{ emoji: "🔧", q: "Looks quick but has steps?" },
 						].map(({ emoji, q }) => (
 							<div
 								key={emoji}
@@ -157,6 +157,107 @@ function TagGuideDialog({
 							haven&apos;t decided how to approach it yet. Use the{" "}
 							<strong className="text-foreground">No 🏷️</strong> filter to
 							surface them and tag in bulk when you&apos;re ready.
+						</p>
+					</div>
+
+					<div className="space-y-3 border-t border-border pt-4">
+						<h4 className="text-foreground font-medium">
+							Which tasks get re-entered most?
+						</h4>
+						<p>
+							Re-entry is a signal, not a failure. Different tag types have
+							different re-entry patterns — understanding yours helps you write
+							better tasks from the start.
+						</p>
+
+						<div className="overflow-x-auto">
+							<table className="w-full text-xs border-collapse">
+								<thead>
+									<tr className="border-b border-border">
+										<th className="text-left py-2 pr-4 text-foreground font-medium">
+											Tag
+										</th>
+										<th className="text-left py-2 pr-4 text-foreground font-medium">
+											Re-entry rate
+										</th>
+										<th className="text-left py-2 text-foreground font-medium">
+											Why it happens
+										</th>
+									</tr>
+								</thead>
+								<tbody className="divide-y divide-border/50">
+									<tr>
+										<td className="py-2.5 pr-4 whitespace-nowrap">🎯 Finish</td>
+										<td className="py-2.5 pr-4 whitespace-nowrap text-amber-500">
+											Medium
+										</td>
+										<td className="py-2.5 text-muted-foreground">
+											Deliverable was too large. A &quot;Finish&quot; that keeps
+											coming back usually needs to be broken into smaller
+											pieces.
+										</td>
+									</tr>
+									<tr>
+										<td className="py-2.5 pr-4 whitespace-nowrap">
+											🧭 Explore
+										</td>
+										<td className="py-2.5 pr-4 whitespace-nowrap text-amber-500">
+											Medium–High
+										</td>
+										<td className="py-2.5 text-muted-foreground">
+											Scope-dependent. A narrow Explore (&quot;Research standing
+											desk options&quot;) closes in 1–2 sessions. A wide one
+											(&quot;Research solar energy&quot;) can cycle indefinitely
+											— that&apos;s not failure, it&apos;s the nature of open
+											terrain. Each re-entry should produce a more specific
+											Finish task as a byproduct.
+										</td>
+									</tr>
+									<tr>
+										<td className="py-2.5 pr-4 whitespace-nowrap">⚡ Quick</td>
+										<td className="py-2.5 pr-4 whitespace-nowrap text-green-500">
+											Very low
+										</td>
+										<td className="py-2.5 text-muted-foreground">
+											By definition, Quick tasks are one-shot — wash the dishes,
+											clean the room, reply to an email. If a Quick gets
+											re-entered, it was misclassified: it&apos;s either blocked
+											by something external, or it&apos;s actually a Handle in
+											disguise. A true Quick doesn&apos;t survive long enough to
+											need re-entry.
+										</td>
+									</tr>
+									<tr>
+										<td className="py-2.5 pr-4 whitespace-nowrap">🔧 Handle</td>
+										<td className="py-2.5 pr-4 whitespace-nowrap text-amber-500">
+											Medium
+										</td>
+										<td className="py-2.5 text-muted-foreground">
+											Re-enters because of waiting periods and external
+											dependencies — the form needs a document you don't have
+											yet, the part hasn't arrived. Each re-entry is expected.
+											Keep going until it closes.
+										</td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
+						<p className="text-xs bg-secondary px-3 py-2.5 rounded space-y-1">
+							<span className="block">
+								<strong className="text-foreground">Rule of thumb:</strong> if a
+								task has been re-entered more than 3 times, stop and ask — is it
+								blocked, too big, or no longer relevant?
+							</span>
+							<span className="block mt-1">
+								<strong className="text-foreground">
+									Exception for Explore:
+								</strong>{" "}
+								wide exploration tasks are supposed to recycle. The signal to
+								watch isn&apos;t re-entry count — it&apos;s whether each session
+								is still producing new clarity or new Finish tasks. If it stops
+								yielding anything concrete, the topic may have run its course.
+							</span>
 						</p>
 					</div>
 				</div>
