@@ -14,6 +14,8 @@ import {
 	Inbox,
 	Search,
 	X,
+	Trophy,
+	RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -175,6 +177,12 @@ interface PageNavProps {
 	onSearchChange: (q: string) => void;
 	totalActiveTasks: number;
 	taskTagCounts: Record<string, number>;
+	completedTasksWithNotes: Array<{
+		text: string;
+		note: string;
+		completed_at: string;
+	}>;
+	onRefreshAchievements: () => void;
 }
 
 export function PageNav({
@@ -186,9 +194,12 @@ export function PageNav({
 	onSearchChange,
 	totalActiveTasks,
 	taskTagCounts,
+	completedTasksWithNotes,
+	onRefreshAchievements,
 }: PageNavProps) {
 	const [searchOpen, setSearchOpen] = useState(false);
 	const searchInputRef = useRef<HTMLInputElement>(null);
+	const [achievementsOpen, setAchievementsOpen] = useState(false);
 
 	useEffect(() => {
 		if (searchOpen) {
@@ -285,6 +296,30 @@ export function PageNav({
 							<Search className="w-4 h-4" />
 						</button>
 					)}
+
+					{/* Achievements Button */}
+					<Tooltip.Provider>
+						<Tooltip.Root>
+							<Tooltip.Trigger asChild>
+								<button
+									onClick={() => setAchievementsOpen(true)}
+									className="text-xs border border-border rounded-full p-1.75 transition-colors text-muted-foreground hover:text-foreground hover:bg-accent"
+								>
+									<Trophy className="w-4 h-4" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Portal>
+								<Tooltip.Content
+									side="top"
+									className="bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-md"
+								>
+									Your Achievements
+									<Tooltip.Arrow className="fill-foreground" />
+								</Tooltip.Content>
+							</Tooltip.Portal>
+						</Tooltip.Root>
+					</Tooltip.Provider>
+
 					<SecondBrainButton />
 				</div>
 			</div>
@@ -312,6 +347,87 @@ export function PageNav({
 					🏷️ {taskTagCounts.none ?? 0} untagged
 				</span>
 			</div>
+
+			{achievementsOpen && (
+				<>
+					<div
+						className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm"
+						onClick={() => setAchievementsOpen(false)}
+					/>
+					<div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none">
+						<div
+							className="pointer-events-auto bg-card border border-border rounded-2xl shadow-xl w-full max-w-md flex flex-col max-h-[70vh]"
+							onClick={(e) => e.stopPropagation()}
+						>
+							{/* Header */}
+							<div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+								<div>
+									<h2 className="text-sm font-semibold text-foreground">
+										Your Achievements 🏆
+									</h2>
+									<p className="text-[11px] text-muted-foreground mt-0.5">
+										Look how much you've done. Be proud.
+									</p>
+								</div>
+								<div className="flex items-center gap-1">
+									<button
+										onClick={onRefreshAchievements}
+										className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-accent"
+										title="Refresh"
+									>
+										<RefreshCw className="w-3.5 h-3.5" />
+									</button>
+									<button
+										onClick={() => setAchievementsOpen(false)}
+										className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-accent"
+									>
+										<X className="w-4 h-4" />
+									</button>
+								</div>
+							</div>
+
+							{/* List */}
+							<div className="overflow-y-auto flex-1 px-5 py-3 flex flex-col gap-3">
+								{completedTasksWithNotes.length === 0 ? (
+									<p className="text-sm text-muted-foreground text-center py-8">
+										No achievements yet. Complete a task and add a note!
+									</p>
+								) : (
+									completedTasksWithNotes.map((task, i) => {
+										const date = new Date(task.completed_at);
+										return (
+											<div
+												key={i}
+												className="flex flex-col gap-0.5 py-2 border-b border-border/50 last:border-0"
+											>
+												<p className="text-sm font-medium text-foreground leading-snug">
+													{task.note}
+												</p>
+												<p className="text-[11px] text-muted-foreground">
+													{task.text}
+												</p>
+												<p className="text-[11px] text-muted-foreground/60 mt-0.5">
+													{date.toLocaleDateString(undefined, {
+														weekday: "short",
+														year: "numeric",
+														month: "short",
+														day: "numeric",
+													})}
+													{" · "}
+													{date.toLocaleTimeString(undefined, {
+														hour: "2-digit",
+														minute: "2-digit",
+													})}
+												</p>
+											</div>
+										);
+									})
+								)}
+							</div>
+						</div>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

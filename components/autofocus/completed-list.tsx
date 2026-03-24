@@ -23,6 +23,7 @@ import type { CompletedViewType } from "./view-tabs";
 import {
 	Dialog,
 	DialogContent,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
@@ -171,7 +172,6 @@ export function CompletedList({
 	);
 	const [showTaskModal, setShowTaskModal] = useState<string | null>(null);
 	const textRefs = useRef<{ [key: string]: HTMLSpanElement }>({});
-	const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
 	// Filter tasks by selected tags
 	const filteredTasks = useMemo(() => {
@@ -385,31 +385,20 @@ export function CompletedList({
 														{task.note ? (
 															<button
 																type="button"
-																onClick={() =>
-																	setExpandedNoteId(
-																		expandedNoteId === task.id ? null : task.id,
-																	)
-																}
-																className="flex items-center rounded-full bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors"
-																title={
-																	expandedNoteId === task.id
-																		? "Hide achievement"
-																		: task.note
-																}
+																onClick={() => setShowTaskModal(task.id)}
+																className="bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors"
+																title={task.note}
 															>
 																<Info className="w-3 h-3" />
 															</button>
 														) : null}
 														<div className="flex-1 min-w-0">
-															<p className="text-foreground line-through opacity-60 leading-snug break-words">
+															<p
+																className="text-foreground line-through opacity-60 leading-snug break-words cursor-pointer"
+																onClick={() => setShowTaskModal(task.id)}
+															>
 																{task.text}
 															</p>
-															{task.note && expandedNoteId === task.id && (
-																<p className="flex gap-1 items-center text-[0.55rem] text-amber-700 dark:text-amber-400 mt-0.5 break-words">
-																	<MessageSquareMore className="w-3 h-3" />
-																	{task.note}
-																</p>
-															)}
 														</div>
 													</div>
 													<div className="flex items-center gap-1 flex-wrap">
@@ -501,19 +490,9 @@ export function CompletedList({
 																{task.note ? (
 																	<button
 																		type="button"
-																		onClick={() =>
-																			setExpandedNoteId(
-																				expandedNoteId === task.id
-																					? null
-																					: task.id,
-																			)
-																		}
-																		className="flex items-center p-1 rounded-full bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors group/trophy"
-																		title={
-																			expandedNoteId === task.id
-																				? "Hide achievement"
-																				: task.note
-																		}
+																		onClick={() => setShowTaskModal(task.id)}
+																		className="flex items-center rounded-full bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors group/trophy"
+																		title={task.note}
 																	>
 																		<Info className="w-4 h-4" />
 																	</button>
@@ -531,26 +510,11 @@ export function CompletedList({
 																				textRefs.current[task.id] = el;
 																		}}
 																		className="truncate text-muted-foreground line-through cursor-pointer hover:text-foreground/70 transition-colors block"
-																		onClick={() => {
-																			const element = textRefs.current[task.id];
-																			if (
-																				element &&
-																				element.scrollWidth >
-																					element.clientWidth
-																			) {
-																				setShowTaskModal(task.id);
-																			}
-																		}}
+																		onClick={() => setShowTaskModal(task.id)}
 																		title="Click to view full text"
 																	>
 																		{task.text}
 																	</span>
-																	{task.note && expandedNoteId === task.id && (
-																		<p className="flex gap-1 items-center text-xs text-amber-700 dark:text-amber-400 mt-0.5 break-words">
-																			<MessageSquareMore className="w-3 h-3" />
-																			{task.note}
-																		</p>
-																	)}
 																</div>
 
 																{task.total_time_ms > 0 && (
@@ -646,15 +610,26 @@ export function CompletedList({
 					open={!!showTaskModal}
 					onOpenChange={() => setShowTaskModal(null)}
 				>
-					<DialogContent className="sm:max-w-[500px] max-w-[calc(100vw-2rem)]">
-						<DialogHeader>
-							<DialogTitle>Completed Task</DialogTitle>
-						</DialogHeader>
-						<div className="pt-4 overflow-hidden">
-							<p className="text-sm text-muted-foreground line-through break-words overflow-wrap-anywhere">
+					<DialogContent className="sm:max-w-[500px] max-w-[calc(100vw-2rem)] overflow-hidden p-0">
+						<div className="px-6 pt-6 pb-1">
+							<DialogHeader>
+								<DialogTitle>Completed Task</DialogTitle>
+							</DialogHeader>
+							<p className="text-sm text-muted-foreground line-through break-words overflow-wrap-anywhere mt-3">
 								{tasks.find((t) => t.id === showTaskModal)?.text}
 							</p>
 						</div>
+
+						{tasks.find((t) => t.id === showTaskModal)?.note && (
+							<div className="flex items-start gap-3 bg-amber-100/80 dark:bg-amber-950/40 border-t border-amber-300/50 dark:border-amber-700/40 px-6 py-4">
+								<span className="text-base leading-none mt-0.5 flex-shrink-0">
+									🏆
+								</span>
+								<p className="text-sm text-amber-800 dark:text-amber-300 break-words">
+									{tasks.find((t) => t.id === showTaskModal)?.note}
+								</p>
+							</div>
+						)}
 					</DialogContent>
 				</Dialog>
 			)}

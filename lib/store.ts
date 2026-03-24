@@ -837,3 +837,17 @@ export async function cleanupDismissedTasks(): Promise<void> {
 		.update({ status: "active", updated_at: new Date().toISOString() })
 		.eq("status", "dismissed");
 }
+
+export async function getTasksWithNotes(): Promise<Task[]> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tasks")
+		.select("*")
+		.eq("status", "completed")
+		.not("note", "is", null)
+		.neq("note", "")
+		.order("completed_at", { ascending: false });
+
+	if (error) throw error;
+	return data ?? [];
+}
