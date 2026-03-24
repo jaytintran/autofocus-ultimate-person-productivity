@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+
 import useSWR from "swr";
 import { Header } from "./header";
 import { TimerBar } from "./timer-bar";
@@ -9,8 +11,6 @@ import { PageNav } from "./page-nav";
 import { TaskList } from "./task-list";
 import { CompletedList } from "./completed-list";
 import { TaskInput } from "./task-input";
-// import { BacklogDump } from "./backlog-dump";
-// import { AboutSection } from "./about-section";
 import {
 	addMultipleTasks,
 	addTask,
@@ -34,6 +34,7 @@ import {
 import type { Task, AppState, TaskStatus } from "@/lib/types";
 import { type CompletedSortKey, type CompletedViewType } from "./view-tabs";
 import { TAG_DEFINITIONS, TagId } from "@/lib/tags";
+import { revertTask } from "@/lib/store";
 
 const DEFAULT_TASK_CAPACITY = 12;
 const FALLBACK_TASK_ROW_HEIGHT = 48;
@@ -206,6 +207,14 @@ export function AutofocusApp() {
 		useState<CompletedSortKey>("default");
 	const [completedViewType, setCompletedViewType] =
 		useState<CompletedViewType>("default");
+
+	// Achievement toast state
+	const [achievementPending, setAchievementPending] = useState<{
+		task: Task;
+		sessionMs: number;
+		type: "done" | "complete";
+	} | null>(null);
+	const [achievementNote, setAchievementNote] = useState("");
 
 	// Search query with debounce
 	const [searchQuery, setSearchQuery] = useState("");
@@ -715,144 +724,10 @@ export function AutofocusApp() {
 		],
 	);
 
-	const handleDoneTask = useCallback(
-		async (task: Task) => {
-			if (!displayedAppState) return;
-
-			const now = new Date().toISOString();
-			const optimisticActiveTasks = displayedActiveTasks
-				.filter((activeTask) => activeTask.id !== task.id)
-				.sort(
-					(a, b) => a.page_number - b.page_number || a.position - b.position,
-				)
-				.map(
-					(t, index) =>
-						({
-							...t,
-							page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
-							position: index % DEFAULT_TASK_CAPACITY,
-							updated_at: now,
-						}) as Task,
-				);
-
-			const completedTask: Task = {
-				...task,
-				status: "completed",
-				completed_at: now,
-				updated_at: now,
-			};
-
-			setPrefetchedTasks(new Map()); // ← ADD THIS
-
-			await runOptimisticUpdate(
-				{
-					activeTasks: optimisticActiveTasks,
-					completedTasks: [completedTask, ...displayedCompletedTasks],
-					appState: displayedAppState,
-					totalPages: getVisibleTotalPages(optimisticActiveTasks),
-				},
-				async () => {
-					await markTaskDone(task.id, task.total_time_ms);
-				},
-			);
-		},
-		[
-			displayedActiveTasks,
-			displayedAppState,
-			displayedCompletedTasks,
-			runOptimisticUpdate,
-		],
-	);
-
-	const handleDeleteTaskOld = useCallback(
-		async (taskId: string) => {
-			if (!displayedAppState) return;
-
-			const deletedActiveTask = displayedActiveTasks.find(
-				(t) => t.id === taskId,
-			);
-			const deletingCompletedTask = displayedCompletedTasks.some(
-				(task) => task.id === taskId,
-			);
-
-			if (!deletedActiveTask && !deletingCompletedTask) return;
-
-			const optimisticActiveTasks = deletedActiveTask
-				? [
-						...displayedActiveTasks
-							.filter((task) => task.id !== taskId)
-							.filter(
-								(task) => task.page_number >= deletedActiveTask.page_number,
-							)
-							.sort(
-								(a, b) =>
-									a.page_number - b.page_number || a.position - b.position,
-							)
-							.map((task, index) => ({
-								...task,
-								page_number:
-									Math.floor(index / 12) + deletedActiveTask.page_number,
-								position: index % 12,
-							})),
-						...displayedActiveTasks.filter(
-							(task) => task.page_number < deletedActiveTask.page_number,
-						),
-					].sort(
-						(a, b) => a.page_number - b.page_number || a.position - b.position,
-					)
-				: displayedActiveTasks;
-
-			const optimisticCompletedTasks = displayedCompletedTasks.filter(
-				(task) => task.id !== taskId,
-			);
-
-			const deletingWorkingTask =
-				displayedAppState.working_on_task_id === taskId;
-			const now = new Date().toISOString();
-
-			if (deletedActiveTask) {
-				setPrefetchedTasks(new Map());
-			}
-
-			// Set optimistic state immediately
-			setOptimisticState({
-				activeTasks: optimisticActiveTasks,
-				completedTasks: optimisticCompletedTasks,
-				appState: deletingWorkingTask
-					? {
-							...displayedAppState,
-							working_on_task_id: null,
-							timer_state: "idle",
-							current_session_ms: 0,
-							session_start_time: null,
-							updated_at: now,
-						}
-					: displayedAppState,
-				totalPages: getVisibleTotalPages(optimisticActiveTasks),
-			});
-
-			// Fire and forget - don't await
-			deleteTask(taskId)
-				.then(async () => {
-					if (deletingWorkingTask) {
-						await stopWorkingOnTask();
-					}
-					await refreshAll();
-					setOptimisticState(null);
-				})
-				.catch(async (error) => {
-					console.error("Failed to delete task:", error);
-					await refreshAll();
-					setOptimisticState(null);
-				});
-		},
-		[
-			displayedActiveTasks,
-			displayedAppState,
-			displayedCompletedTasks,
-			refreshAll,
-		],
-	);
+	const handleDoneTask = useCallback(async (task: Task) => {
+		setAchievementNote("");
+		setAchievementPending({ task, sessionMs: 0, type: "done" });
+	}, []);
 
 	const handleDeleteTask = useCallback(
 		async (taskId: string) => {
@@ -925,97 +800,6 @@ export function AutofocusApp() {
 						await stopWorkingOnTask();
 					}
 					await deleteTask(taskId);
-				},
-			);
-		},
-		[
-			displayedActiveTasks,
-			displayedAppState,
-			displayedCompletedTasks,
-			runOptimisticUpdate,
-		],
-	);
-
-	const handleReenterTaskOldOld = useCallback(
-		async (task: Task) => {
-			const remainingActiveTasks = displayedActiveTasks.filter(
-				(activeTask) => activeTask.id !== task.id,
-			);
-			const placement = getNextTaskPlacement(
-				remainingActiveTasks,
-				DEFAULT_TASK_CAPACITY,
-			);
-
-			await reenterTask(
-				task.id,
-				task.text,
-				placement.pageNumber,
-				placement.position,
-				task.total_time_ms,
-			);
-			await markTaskDone(task.id, task.total_time_ms);
-			await refreshAll();
-		},
-		[displayedActiveTasks, refreshAll],
-	);
-
-	const handleReenterTaskOld = useCallback(
-		async (task: Task) => {
-			if (!displayedAppState) return;
-
-			const now = new Date().toISOString();
-			const remainingActiveTasks = displayedActiveTasks.filter(
-				(activeTask) => activeTask.id !== task.id,
-			);
-			const placement = getNextTaskPlacement(
-				remainingActiveTasks,
-				DEFAULT_TASK_CAPACITY,
-			);
-
-			const reenteredTask: Task = {
-				...task,
-				id: crypto.randomUUID(),
-				page_number: placement.pageNumber,
-				position: placement.position,
-				status: "active" as TaskStatus,
-				re_entered_from: task.id,
-				added_at: now,
-				completed_at: null,
-				updated_at: now,
-			};
-
-			const completedTask: Task = {
-				...task,
-				status: "completed",
-				completed_at: now,
-				updated_at: now,
-			};
-
-			const optimisticActiveTasks = [
-				...remainingActiveTasks,
-				reenteredTask,
-			].sort(
-				(a, b) => a.page_number - b.page_number || a.position - b.position,
-			);
-
-			setPrefetchedTasks(new Map());
-
-			await runOptimisticUpdate(
-				{
-					activeTasks: optimisticActiveTasks,
-					completedTasks: [completedTask, ...displayedCompletedTasks],
-					appState: displayedAppState,
-					totalPages: getVisibleTotalPages(optimisticActiveTasks),
-				},
-				async () => {
-					await reenterTask(
-						task.id,
-						task.text,
-						placement.pageNumber,
-						placement.position,
-						task.total_time_ms,
-					);
-					await markTaskDone(task.id, task.total_time_ms);
 				},
 			);
 		},
@@ -1107,6 +891,51 @@ export function AutofocusApp() {
 						task.tag,
 					);
 					await markTaskDone(task.id, task.total_time_ms);
+				},
+			);
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			runOptimisticUpdate,
+		],
+	);
+
+	const handleRevertTask = useCallback(
+		async (task: Task) => {
+			if (!displayedAppState) return;
+
+			const now = new Date().toISOString();
+
+			// Optimistically move task back to active
+			const revertedTask: Task = {
+				...task,
+				status: "active" as TaskStatus,
+				completed_at: null,
+				updated_at: now,
+				// Place at end of active list
+				page_number:
+					Math.floor(displayedActiveTasks.length / DEFAULT_TASK_CAPACITY) + 1,
+				position: displayedActiveTasks.length % DEFAULT_TASK_CAPACITY,
+			};
+
+			const optimisticCompletedTasks = displayedCompletedTasks.filter(
+				(t) => t.id !== task.id,
+			);
+			const optimisticActiveTasks = [...displayedActiveTasks, revertedTask];
+
+			setPrefetchedTasks(new Map());
+
+			await runOptimisticUpdate(
+				{
+					activeTasks: optimisticActiveTasks,
+					completedTasks: optimisticCompletedTasks,
+					appState: displayedAppState,
+					totalPages: getVisibleTotalPages(optimisticActiveTasks),
+				},
+				async () => {
+					await revertTask(task.id);
 				},
 			);
 		},
@@ -1345,7 +1174,7 @@ export function AutofocusApp() {
 	);	
 	*/
 
-	const handleCompleteWorkingTask = useCallback(
+	const handleCompleteWorkingTaskOld = useCallback(
 		async (task: Task, sessionMs: number) => {
 			if (!displayedAppState) return;
 
@@ -1403,6 +1232,14 @@ export function AutofocusApp() {
 			displayedCompletedTasks,
 			runOptimisticUpdate,
 		],
+	);
+
+	const handleCompleteWorkingTask = useCallback(
+		async (task: Task, sessionMs: number) => {
+			setAchievementNote("");
+			setAchievementPending({ task, sessionMs, type: "complete" });
+		},
+		[],
 	);
 
 	const handleCancelWorkingTask = useCallback(
@@ -1936,6 +1773,147 @@ export function AutofocusApp() {
 		}
 	}, [isLoadingMore, hasMoreCompleted, completedPage]);
 
+	// Handle commit done task
+	const commitDoneTask = useCallback(
+		async (task: Task, note: string) => {
+			if (!displayedAppState) return;
+			const now = new Date().toISOString();
+			if (note.trim()) await updateTask(task.id, { note: note.trim() });
+			const optimisticActiveTasks = displayedActiveTasks
+				.filter((t) => t.id !== task.id)
+				.sort(
+					(a, b) => a.page_number - b.page_number || a.position - b.position,
+				)
+				.map(
+					(t, index) =>
+						({
+							...t,
+							page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
+							position: index % DEFAULT_TASK_CAPACITY,
+							updated_at: now,
+						}) as Task,
+				);
+			const completedTask: Task = {
+				...task,
+				status: "completed",
+				completed_at: now,
+				updated_at: now,
+				note: note.trim() || task.note,
+			};
+			setPrefetchedTasks(new Map());
+			await runOptimisticUpdate(
+				{
+					activeTasks: optimisticActiveTasks,
+					completedTasks: [completedTask, ...displayedCompletedTasks],
+					appState: displayedAppState,
+					totalPages: getVisibleTotalPages(optimisticActiveTasks),
+				},
+				async () => {
+					await markTaskDone(task.id, task.total_time_ms);
+				},
+			);
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			runOptimisticUpdate,
+		],
+	);
+
+	// Handle commit complete working task
+	const commitCompleteWorkingTask = useCallback(
+		async (task: Task, sessionMs: number, note: string) => {
+			if (!displayedAppState) return;
+			const now = new Date().toISOString();
+			const totalTime = task.total_time_ms + sessionMs;
+			if (note.trim()) await updateTask(task.id, { note: note.trim() });
+			const optimisticActiveTasks = displayedActiveTasks
+				.filter((t) => t.id !== task.id)
+				.sort(
+					(a, b) => a.page_number - b.page_number || a.position - b.position,
+				)
+				.map(
+					(t, index) =>
+						({
+							...t,
+							page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
+							position: index % DEFAULT_TASK_CAPACITY,
+							updated_at: now,
+						}) as Task,
+				);
+			const completedTask: Task = {
+				...task,
+				status: "completed",
+				completed_at: now,
+				total_time_ms: totalTime,
+				updated_at: now,
+				note: note.trim() || task.note,
+			};
+			setPrefetchedTasks(new Map());
+			await runOptimisticUpdate(
+				{
+					activeTasks: optimisticActiveTasks,
+					completedTasks: [completedTask, ...displayedCompletedTasks],
+					appState: {
+						...displayedAppState,
+						working_on_task_id: null,
+						timer_state: "idle",
+						current_session_ms: 0,
+						session_start_time: null,
+						updated_at: now,
+					},
+					totalPages: getVisibleTotalPages(optimisticActiveTasks),
+				},
+				async () => {
+					await completeTask(task.id, totalTime);
+					await stopWorkingOnTask();
+				},
+			);
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			runOptimisticUpdate,
+		],
+	);
+
+	// Handle achievement toast
+	const handleAchievementSubmit = useCallback(async () => {
+		if (!achievementPending) return;
+		const { task, sessionMs, type } = achievementPending;
+		setAchievementPending(null);
+		if (type === "done") await commitDoneTask(task, achievementNote);
+		else await commitCompleteWorkingTask(task, sessionMs, achievementNote);
+		setAchievementNote("");
+	}, [
+		achievementPending,
+		achievementNote,
+		commitDoneTask,
+		commitCompleteWorkingTask,
+	]);
+
+	//  Add a resetAchievementTimer ref and auto-dismiss logic
+	const achievementTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+
+	const resetAchievementTimer = useCallback(() => {
+		if (achievementTimerRef.current) clearTimeout(achievementTimerRef.current);
+		achievementTimerRef.current = setTimeout(() => {
+			setAchievementPending((pending) => {
+				if (!pending) return null;
+				// Dismiss without note
+				const { task, sessionMs, type } = pending;
+				if (type === "done") commitDoneTask(task, "");
+				else commitCompleteWorkingTask(task, sessionMs, "");
+				return null;
+			});
+			setAchievementNote("");
+		}, 5000);
+	}, [commitDoneTask, commitCompleteWorkingTask]);
+
 	// Auto-navigate to the working task's page only when it first becomes active
 	const prevWorkingTaskIdRef = useRef<string | null>(null);
 
@@ -1987,6 +1965,20 @@ export function AutofocusApp() {
 			setFilteredCurrentPage(filteredTotalPages);
 		}
 	}, [isFilterActive, filteredCurrentPage, filteredTotalPages]);
+
+	// Start the timer when achievementPending is set
+	useEffect(() => {
+		if (achievementPending) {
+			resetAchievementTimer();
+		} else {
+			if (achievementTimerRef.current)
+				clearTimeout(achievementTimerRef.current);
+		}
+		return () => {
+			if (achievementTimerRef.current)
+				clearTimeout(achievementTimerRef.current);
+		};
+	}, [achievementPending]); // intentionally omit resetAchievementTimer to avoid restart on re-render
 
 	const handleToggleTag = useCallback((tagId: TagId | "none" | "all") => {
 		setSelectedTags((prev) => {
@@ -2109,6 +2101,7 @@ export function AutofocusApp() {
 						onLoadMore={handleLoadMoreCompleted}
 						onRefresh={refreshAll}
 						onDeleteTask={handleDeleteTask}
+						onRevertTask={handleRevertTask}
 					/>
 				)}
 			</main>
@@ -2118,6 +2111,88 @@ export function AutofocusApp() {
 					<TaskInput onAddTask={handleAddTask} selectedTags={selectedTags} />
 				</>
 			)}
+
+			<AnimatePresence>
+				{achievementPending && (
+					<>
+						<motion.div
+							key="achievement-backdrop"
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							transition={{ duration: 0.2 }}
+							className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm"
+							onClick={() => {
+								const { task, sessionMs, type } = achievementPending;
+								setAchievementPending(null);
+								if (type === "done") commitDoneTask(task, "");
+								else commitCompleteWorkingTask(task, sessionMs, "");
+								setAchievementNote("");
+							}}
+						/>
+						<div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none px-4">
+							<motion.div
+								key="achievement-toast"
+								initial={{ opacity: 0, scale: 0.92, y: 16 }}
+								animate={{ opacity: 1, scale: 1, y: 0 }}
+								exit={{ opacity: 0, scale: 0.92, y: 16 }}
+								transition={{ type: "spring", stiffness: 400, damping: 28 }}
+								className="bg-card border border-border rounded-xl shadow-lg p-4 flex flex-col gap-3 w-full max-w-sm pointer-events-auto"
+								onClick={(e) => e.stopPropagation()}
+							>
+								<div className="text-sm uppercase font-medium text-foreground mb-1.5">
+									Achievement or Anything to Note?
+								</div>
+
+								{/* <div className="text-xs text-muted-foreground truncate">
+									{achievementPending.task.text}
+								</div> */}
+								<input
+									autoFocus
+									type="text"
+									value={achievementNote}
+									onChange={(e) => {
+										setAchievementNote(e.target.value);
+										resetAchievementTimer();
+									}}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") handleAchievementSubmit();
+										if (e.key === "Escape") {
+											const { task, sessionMs, type } = achievementPending;
+											setAchievementPending(null);
+											if (type === "done") commitDoneTask(task, "");
+											else commitCompleteWorkingTask(task, sessionMs, "");
+											setAchievementNote("");
+										}
+									}}
+									placeholder="e.g. Finished a 10km run for the first time"
+									className="w-full bg-background border border-input rounded-lg px-3 py-2 mb-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+								/>
+								<div className="flex gap-2 justify-end w-full">
+									<button
+										onClick={() => {
+											const { task, sessionMs, type } = achievementPending;
+											setAchievementPending(null);
+											if (type === "done") commitDoneTask(task, "");
+											else commitCompleteWorkingTask(task, sessionMs, "");
+											setAchievementNote("");
+										}}
+										className="w-1/2 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 border border-muted-foreground rounded-lg hover:bg-muted transition-colors"
+									>
+										Skip
+									</button>
+									<button
+										onClick={handleAchievementSubmit}
+										className="w-1/2 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
+									>
+										Save
+									</button>
+								</div>
+							</motion.div>
+						</div>
+					</>
+				)}
+			</AnimatePresence>
 		</div>
 	);
 }

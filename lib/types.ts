@@ -15,6 +15,7 @@ export interface Task {
 	total_time_ms: number;
 	re_entered_from: string | null;
 	tag: TagId | null;
+	note?: string | null;
 	created_at: string;
 	updated_at: string;
 }

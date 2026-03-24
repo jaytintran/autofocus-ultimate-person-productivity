@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef } from "react";
-import { RotateCcw, Trash2, Sunrise, CloudSun, Moon } from "lucide-react";
+import {
+	RotateCcw,
+	Trash2,
+	Sunrise,
+	CloudSun,
+	Moon,
+	Info,
+	Check,
+	MessageSquareMore,
+} from "lucide-react";
 import { revertTask } from "@/lib/store";
 import { formatTimeCompact } from "./timer-bar";
 import { TagFilter } from "./tag-filter";
@@ -28,6 +37,7 @@ interface CompletedListProps {
 	isLoadingMore: boolean;
 	onLoadMore: () => void;
 	completedViewType: CompletedViewType;
+	onRevertTask: (task: Task) => Promise<void>;
 }
 
 function formatCompletionTime(dateString: string): string {
@@ -153,6 +163,7 @@ export function CompletedList({
 	onLoadMore,
 	onRefresh,
 	onDeleteTask,
+	onRevertTask,
 }: CompletedListProps) {
 	const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
@@ -160,6 +171,7 @@ export function CompletedList({
 	);
 	const [showTaskModal, setShowTaskModal] = useState<string | null>(null);
 	const textRefs = useRef<{ [key: string]: HTMLSpanElement }>({});
+	const [expandedNoteId, setExpandedNoteId] = useState<string | null>(null);
 
 	// Filter tasks by selected tags
 	const filteredTasks = useMemo(() => {
@@ -292,16 +304,14 @@ export function CompletedList({
 	const handleRevert = useCallback(
 		async (task: Task) => {
 			if (loadingTaskId) return;
-
 			setLoadingTaskId(task.id);
 			try {
-				await revertTask(task.id);
-				await onRefresh();
+				await onRevertTask(task);
 			} finally {
 				setLoadingTaskId(null);
 			}
 		},
-		[loadingTaskId, onRefresh],
+		[loadingTaskId, onRevertTask],
 	);
 
 	const handleDelete = useCallback(
@@ -319,7 +329,7 @@ export function CompletedList({
 			} else {
 				setShowDeleteConfirm(taskId);
 				// Auto-hide after 3 seconds
-				setTimeout(() => setShowDeleteConfirm(null), 3000);
+				setTimeout(() => setShowDeleteConfirm(null), 5000);
 			}
 		},
 		[loadingTaskId, showDeleteConfirm, onDeleteTask],
@@ -368,16 +378,40 @@ export function CompletedList({
 											return (
 												<div
 													key={task.id}
-													className={`
-													group rounded-lg px-2 py-1.5 text-[11px]
-													bg-secondary/50 hover:bg-secondary
-													transition-colors space-y-1
-													${isLoading ? "opacity-50" : ""}
-												`}
+													className={`group rounded-lg px-2 py-1.5 text-[11px] bg-secondary/50 hover:bg-secondary transition-colors space-y-1 ${isLoading ? "opacity-50" : ""}`}
 												>
-													<p className="text-foreground line-through opacity-60 leading-snug break-words">
-														{task.text}
-													</p>
+													<div className="flex items-start gap-1.5">
+														{/* Note chip or checkmark */}
+														{task.note ? (
+															<button
+																type="button"
+																onClick={() =>
+																	setExpandedNoteId(
+																		expandedNoteId === task.id ? null : task.id,
+																	)
+																}
+																className="flex items-center rounded-full bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors"
+																title={
+																	expandedNoteId === task.id
+																		? "Hide achievement"
+																		: task.note
+																}
+															>
+																<Info className="w-3 h-3" />
+															</button>
+														) : null}
+														<div className="flex-1 min-w-0">
+															<p className="text-foreground line-through opacity-60 leading-snug break-words">
+																{task.text}
+															</p>
+															{task.note && expandedNoteId === task.id && (
+																<p className="flex gap-1 items-center text-[0.55rem] text-amber-700 dark:text-amber-400 mt-0.5 break-words">
+																	<MessageSquareMore className="w-3 h-3" />
+																	{task.note}
+																</p>
+															)}
+														</div>
+													</div>
 													<div className="flex items-center gap-1 flex-wrap">
 														{task.completed_at && (
 															<span className="text-muted-foreground opacity-60">
@@ -396,7 +430,6 @@ export function CompletedList({
 															/>
 														)}
 													</div>
-													{/* Actions */}
 													<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
 														<button
 															type="button"
@@ -411,19 +444,11 @@ export function CompletedList({
 															type="button"
 															onClick={() => handleDelete(task.id)}
 															disabled={isLoading}
-															className={`p-0.5 rounded transition-colors ${
-																showDeleteConfirm === task.id
-																	? "bg-destructive/20"
-																	: "hover:bg-accent"
-															}`}
+															className={`p-0.5 rounded transition-colors ${showDeleteConfirm === task.id ? "bg-destructive/20" : "hover:bg-accent"}`}
 															title="Delete task"
 														>
 															<Trash2
-																className={`w-3 h-3 ${
-																	showDeleteConfirm === task.id
-																		? "text-destructive"
-																		: "text-muted-foreground"
-																}`}
+																className={`w-3 h-3 ${showDeleteConfirm === task.id ? "text-destructive" : "text-muted-foreground"}`}
 															/>
 														</button>
 													</div>
@@ -470,53 +495,74 @@ export function CompletedList({
 														return (
 															<li
 																key={task.id}
-																className={`
-															group py-2.5 flex items-center gap-3
-															${isLoading ? "opacity-50" : ""}
-														`}
+																className={`group py-2.5 flex items-center gap-3 ${isLoading ? "opacity-50" : ""}`}
 															>
-																{/* Checkmark */}
-																<span className="text-[#8b9a6b] flex-shrink-0">
-																	✓
-																</span>
-
-																{/* Task text */}
-																<span
-																	ref={(el) => {
-																		if (el && task.id) {
-																			textRefs.current[task.id] = el;
+																{/* Checkmark or note chip */}
+																{task.note ? (
+																	<button
+																		type="button"
+																		onClick={() =>
+																			setExpandedNoteId(
+																				expandedNoteId === task.id
+																					? null
+																					: task.id,
+																			)
 																		}
-																	}}
-																	className="flex-1 truncate text-muted-foreground line-through cursor-pointer hover:text-foreground/70 transition-colors"
-																	onClick={() => {
-																		const element = textRefs.current[task.id];
-																		if (
-																			element &&
-																			element.scrollWidth > element.clientWidth
-																		) {
-																			setShowTaskModal(task.id);
+																		className="flex items-center p-1 rounded-full bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors group/trophy"
+																		title={
+																			expandedNoteId === task.id
+																				? "Hide achievement"
+																				: task.note
 																		}
-																	}}
-																	title="Click to view full text"
-																>
-																	{task.text}
-																</span>
+																	>
+																		<Info className="w-4 h-4" />
+																	</button>
+																) : (
+																	<span className="text-[#8b9a6b] flex-shrink-0">
+																		<Check className="w-4 h-4" />
+																	</span>
+																)}
 
-																{/* Time spent */}
+																{/* Task text + note popover */}
+																<div className="flex-1 min-w-0">
+																	<span
+																		ref={(el) => {
+																			if (el && task.id)
+																				textRefs.current[task.id] = el;
+																		}}
+																		className="truncate text-muted-foreground line-through cursor-pointer hover:text-foreground/70 transition-colors block"
+																		onClick={() => {
+																			const element = textRefs.current[task.id];
+																			if (
+																				element &&
+																				element.scrollWidth >
+																					element.clientWidth
+																			) {
+																				setShowTaskModal(task.id);
+																			}
+																		}}
+																		title="Click to view full text"
+																	>
+																		{task.text}
+																	</span>
+																	{task.note && expandedNoteId === task.id && (
+																		<p className="flex gap-1 items-center text-xs text-amber-700 dark:text-amber-400 mt-0.5 break-words">
+																			<MessageSquareMore className="w-3 h-3" />
+																			{task.note}
+																		</p>
+																	)}
+																</div>
+
 																{task.total_time_ms > 0 && (
 																	<span className="text-xs text-[#8b9a6b] flex-shrink-0">
 																		{formatTimeCompact(task.total_time_ms)}
 																	</span>
 																)}
-
-																{/* Completion time */}
 																{task.completed_at && (
 																	<span className="text-xs text-muted-foreground flex-shrink-0">
 																		{formatCompletionTime(task.completed_at)}
 																	</span>
 																)}
-
-																{/* Tag pill */}
 																{task.tag && (
 																	<TagPill
 																		tagId={task.tag}
@@ -524,9 +570,7 @@ export function CompletedList({
 																	/>
 																)}
 
-																{/* Action buttons */}
 																<div className="flex items-center gap-1 flex-shrink-0">
-																	{/* Revert button */}
 																	<button
 																		type="button"
 																		onClick={() => handleRevert(task)}
@@ -536,8 +580,6 @@ export function CompletedList({
 																	>
 																		<RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
 																	</button>
-
-																	{/* Delete button */}
 																	<button
 																		type="button"
 																		onClick={() => handleDelete(task.id)}
