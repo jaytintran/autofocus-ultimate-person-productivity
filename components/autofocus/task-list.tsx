@@ -53,7 +53,7 @@ function useSwipeReveal() {
 	const [dragOffset, setDragOffset] = useState(0);
 	const startXRef = useRef<number | null>(null);
 	const LEFT_TRAY_WIDTH = 192; // 3 buttons × 48px (re-enter, tag, delete)
-	const RIGHT_TRAY_WIDTH = 96; // 2 buttons × 48px (start, complete)
+	const RIGHT_TRAY_WIDTH = 144; // 3 buttons × 48px (start, complete, pump)
 
 	const onTouchStart = useCallback(
 		(e: React.TouchEvent) => {
@@ -190,6 +190,7 @@ interface TaskListProps {
 		action: "complete" | "reenter",
 	) => Promise<void>;
 	onVisibleCapacityChange?: (capacity: number) => void;
+	onPumpTask: (taskId: string) => Promise<void>;
 }
 
 const FALLBACK_TASK_ROW_HEIGHT = 48;
@@ -210,6 +211,8 @@ interface TaskRowProps {
 	) => Promise<void>;
 	disabled: boolean;
 	isDragOverlay?: boolean;
+	onPumpTask: (taskId: string) => void;
+	isFirst: boolean;
 }
 
 function TaskRow({
@@ -225,6 +228,8 @@ function TaskRow({
 	onSwitchTask,
 	disabled,
 	isDragOverlay = false,
+	onPumpTask,
+	isFirst,
 }: TaskRowProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editText, setEditText] = useState(task.text);
@@ -471,6 +476,30 @@ function TaskRow({
 									onSelectTag={(tag) => onUpdateTag(task.id, tag)}
 									disabled={disabled}
 								/>
+								{!isFirst && (
+									<button
+										onClick={(e) => {
+											e.stopPropagation();
+											onPumpTask(task.id);
+										}}
+										className="p-1.5 hover:bg-accent rounded transition-colors"
+										title="Pump to top"
+									>
+										<svg
+											width="14"
+											height="14"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											strokeWidth="2"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+										>
+											<polyline points="17 11 12 6 7 11" />
+											<polyline points="17 18 12 13 7 18" />
+										</svg>
+									</button>
+								)}
 								<button
 									onClick={(e) => {
 										e.stopPropagation();
@@ -587,6 +616,31 @@ function TaskRow({
 						>
 							<Check className="w-4 h-4 text-white" />
 						</button>
+
+						{!isFirst && (
+							<button
+								onTouchEnd={(e) => {
+									e.stopPropagation();
+									close();
+									onPumpTask(task.id);
+								}}
+								className="w-12 flex items-center justify-center bg-[#6b7fa3] active:opacity-80"
+							>
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="white"
+									strokeWidth="2"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+								>
+									<polyline points="17 11 12 6 7 11" />
+									<polyline points="17 18 12 13 7 18" />
+								</svg>
+							</button>
+						)}
 					</div>
 				)}
 			</li>
@@ -682,6 +736,7 @@ export function TaskList({
 	onReorderTasks,
 	onSwitchTask,
 	onVisibleCapacityChange,
+	onPumpTask,
 }: TaskListProps) {
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -754,6 +809,19 @@ export function TaskList({
 			}
 		},
 		[loadingTaskIds, onRefresh],
+	);
+
+	const handlePumpTask = useCallback(
+		async (taskId: string) => {
+			if (loadingTaskIds.has(taskId)) return;
+			addLoading(taskId);
+			try {
+				await onPumpTask(taskId);
+			} finally {
+				removeLoading(taskId);
+			}
+		},
+		[loadingTaskIds, onPumpTask],
 	);
 
 	const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -1004,6 +1072,8 @@ export function TaskList({
 									onUpdateTag={handleUpdateTag}
 									onSwitchTask={handleSwitchTask}
 									disabled={loadingTaskIds.has(task.id)}
+									onPumpTask={handlePumpTask}
+									isFirst={task.page_number === 1 && task.position === 0}
 								/>
 							))}
 						</ul>
@@ -1023,6 +1093,8 @@ export function TaskList({
 								onSwitchTask={async () => {}}
 								disabled={false}
 								isDragOverlay
+								onPumpTask={() => {}}
+								isFirst={false}
 							/>
 						)}
 					</DragOverlay>

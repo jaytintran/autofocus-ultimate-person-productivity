@@ -676,6 +676,61 @@ export function AutofocusApp() {
 		],
 	);
 
+	const handlePumpTask = useCallback(
+		async (taskId: string) => {
+			if (!displayedAppState) return;
+
+			const now = new Date().toISOString();
+			const sorted = [...displayedActiveTasks].sort(
+				(a, b) => a.page_number - b.page_number || a.position - b.position,
+			);
+
+			// Move target to front, keep rest in order
+			const reordered = [
+				sorted.find((t) => t.id === taskId)!,
+				...sorted.filter((t) => t.id !== taskId),
+			];
+
+			const updates = reordered.map((task, index) => ({
+				id: task.id,
+				page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
+				position: index % DEFAULT_TASK_CAPACITY,
+			}));
+
+			const updatedMap = new Map(updates.map((u) => [u.id, u]));
+			const optimisticActiveTasks: Task[] = reordered.map((task) => {
+				const u = updatedMap.get(task.id)!;
+				return {
+					...task,
+					page_number: u.page_number,
+					position: u.position,
+					updated_at: now,
+				};
+			});
+
+			setPrefetchedTasks(new Map());
+			setCurrentPage(1);
+
+			await runOptimisticUpdate(
+				{
+					activeTasks: optimisticActiveTasks,
+					completedTasks: displayedCompletedTasks,
+					appState: displayedAppState,
+					totalPages: getVisibleTotalPages(optimisticActiveTasks),
+				},
+				async () => {
+					await reorderTasks(updates);
+				},
+			);
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			runOptimisticUpdate,
+		],
+	);
+
 	const handleDoneTask = useCallback(async (task: Task) => {
 		setAchievementNote("");
 		setAchievementPending({ task, sessionMs: 0, type: "done" });
@@ -1756,6 +1811,7 @@ export function AutofocusApp() {
 						onReorderTasks={handleReorderTasks}
 						onSwitchTask={handleSwitchTask}
 						onVisibleCapacityChange={handleVisibleTaskCapacityChange}
+						onPumpTask={handlePumpTask}
 					/>
 				) : (
 					<CompletedList

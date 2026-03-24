@@ -4,6 +4,10 @@ import { TagId } from "@/lib/tags";
 
 const APP_STATE_ID = "00000000-0000-0000-0000-000000000001";
 
+/**
+ * Retrieves all tasks from the database, ordered by page_number then position.
+ * @returns {Promise<Task[]>} Array of all tasks
+ */
 export async function getTasks(): Promise<Task[]> {
 	const supabase = createClient();
 	const { data, error } = await supabase
@@ -16,6 +20,11 @@ export async function getTasks(): Promise<Task[]> {
 	return data || [];
 }
 
+/**
+ * Retrieves tasks filtered by specific status, ordered by page_number then position.
+ * @param status - The task status to filter by
+ * @returns {Promise<Task[]>} Array of matching tasks
+ */
 export async function getTasksByStatus(status: TaskStatus): Promise<Task[]> {
 	const supabase = createClient();
 	const { data, error } = await supabase
@@ -29,6 +38,10 @@ export async function getTasksByStatus(status: TaskStatus): Promise<Task[]> {
 	return data || [];
 }
 
+/**
+ * Retrieves active and in-progress tasks, ordered by page_number then position.
+ * @returns {Promise<Task[]>} Array of active tasks
+ */
 export async function getActiveTasks(): Promise<Task[]> {
 	const supabase = createClient();
 	const { data, error } = await supabase
@@ -44,6 +57,11 @@ export async function getActiveTasks(): Promise<Task[]> {
 
 const COMPLETED_PAGE_SIZE = 50;
 
+/**
+ * Retrieves completed tasks for a specific page (paginated), newest first.
+ * @param page - Page number for pagination
+ * @returns {Promise<Task[]>} Array of completed tasks for the page
+ */
 export async function getCompletedTasks(page: number = 1): Promise<Task[]> {
 	const supabase = createClient();
 	const from = (page - 1) * COMPLETED_PAGE_SIZE;
@@ -60,6 +78,10 @@ export async function getCompletedTasks(page: number = 1): Promise<Task[]> {
 	return data || [];
 }
 
+/**
+ * Gets the total count of completed tasks.
+ * @returns {Promise<number>} Count of completed tasks
+ */
 export async function getCompletedTasksCount(): Promise<number> {
 	const supabase = createClient();
 	const { count, error } = await supabase
