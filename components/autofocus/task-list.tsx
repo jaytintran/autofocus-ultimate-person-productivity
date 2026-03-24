@@ -46,14 +46,14 @@ function useIsMobile() {
 	return isMobile;
 }
 
-function useSwipeReveal() {
+function useSwipeReveal(isFirst: boolean, isLast: boolean) {
 	const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(
 		null,
 	);
 	const [dragOffset, setDragOffset] = useState(0);
 	const startXRef = useRef<number | null>(null);
-	const LEFT_TRAY_WIDTH = 192; // 3 buttons × 48px (re-enter, tag, delete)
-	const RIGHT_TRAY_WIDTH = 144; // 3 buttons × 48px (start, complete, pump)
+	const LEFT_TRAY_WIDTH = isFirst ? 96 : 144; // re-enter, pump (if not first), delete
+	const RIGHT_TRAY_WIDTH = isLast ? 96 : 144; // 3 buttons × 48px (start, complete, sink)
 
 	const onTouchStart = useCallback(
 		(e: React.TouchEvent) => {
@@ -191,6 +191,8 @@ interface TaskListProps {
 	) => Promise<void>;
 	onVisibleCapacityChange?: (capacity: number) => void;
 	onPumpTask: (taskId: string) => Promise<void>;
+	onSinkTask: (taskId: string) => Promise<void>;
+	visibleTotalPages: number;
 }
 
 const FALLBACK_TASK_ROW_HEIGHT = 48;
@@ -212,7 +214,9 @@ interface TaskRowProps {
 	disabled: boolean;
 	isDragOverlay?: boolean;
 	onPumpTask: (taskId: string) => void;
+	onSinkTask: (taskId: string) => void;
 	isFirst: boolean;
+	isLast: boolean;
 }
 
 function TaskRow({
@@ -230,6 +234,8 @@ function TaskRow({
 	isDragOverlay = false,
 	onPumpTask,
 	isFirst,
+	onSinkTask,
+	isLast,
 }: TaskRowProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editText, setEditText] = useState(task.text);
@@ -253,7 +259,7 @@ function TaskRow({
 		onTouchMove,
 		onTouchEnd,
 		close,
-	} = useSwipeReveal();
+	} = useSwipeReveal(isFirst, isLast);
 
 	const {
 		attributes,
@@ -389,6 +395,7 @@ function TaskRow({
 					onTouchEnd={
 						isMobile && (swipedLeft || swipedRight)
 							? (e) => {
+									if (e.cancelable) e.preventDefault();
 									e.stopPropagation();
 									close();
 								}
@@ -453,13 +460,18 @@ function TaskRow({
 							</span>
 						)}
 
-						{task.tag && !isEditing && (
+						{/* {task.tag && !isEditing && (
 							<TagPill
 								tagId={task.tag}
 								onClick={() => !disabled && !isMobile && setShowModal(true)}
 								className=""
 							/>
-						)}
+						)} */}
+						<TagPill
+							tagId={task.tag}
+							onSelectTag={(tag) => !disabled && onUpdateTag(task.id, tag)}
+							disabled={disabled || isEditing || isWorking}
+						/>
 
 						{/* Desktop action buttons only */}
 						{!isMobile && !isWorking && !isEditing && (
@@ -471,11 +483,13 @@ function TaskRow({
 								>
 									<Play className="w-3.5 h-3.5 text-[#8b9a6b]" />
 								</button>
-								<TagPicker
+								{/* <TagPicker
 									currentTag={task.tag}
 									onSelectTag={(tag) => onUpdateTag(task.id, tag)}
 									disabled={disabled}
-								/>
+								/> */}
+
+								{/* PUMP BUTTON */}
 								{!isFirst && (
 									<button
 										onClick={(e) => {
@@ -497,6 +511,32 @@ function TaskRow({
 										>
 											<polyline points="17 11 12 6 7 11" />
 											<polyline points="17 18 12 13 7 18" />
+										</svg>
+									</button>
+								)}
+
+								{/* SINK BUTTON */}
+								{!isLast && (
+									<button
+										onClick={(e) => {
+											e.stopPropagation();
+											onSinkTask(task.id);
+										}}
+										className="p-1.5 hover:bg-accent rounded transition-colors"
+										title="Sink to bottom"
+									>
+										<svg
+											width="14"
+											height="14"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											strokeWidth="2"
+											strokeLinecap="round"
+											strokeLinejoin="round"
+										>
+											<polyline points="7 13 12 18 17 13" />
+											<polyline points="7 6 12 11 17 6" />
 										</svg>
 									</button>
 								)}
@@ -550,6 +590,7 @@ function TaskRow({
 					>
 						<button
 							onTouchEnd={(e) => {
+								if (e.cancelable) e.preventDefault();
 								e.stopPropagation();
 								close();
 								onReenter(task);
@@ -558,18 +599,36 @@ function TaskRow({
 						>
 							<RefreshCw className="w-4 h-4 text-white" />
 						</button>
-						<div className="w-12 flex items-center justify-center bg-[#6b7fa3]">
-							<TagPicker
-								currentTag={task.tag}
-								onSelectTag={(tag) => {
+
+						{!isFirst && (
+							<button
+								onTouchEnd={(e) => {
+									if (e.cancelable) e.preventDefault();
+									e.stopPropagation();
 									close();
-									onUpdateTag(task.id, tag);
+									onPumpTask(task.id);
 								}}
-								disabled={disabled}
-							/>
-						</div>
+								className="w-12 flex items-center justify-center bg-[#6b7fa3] active:opacity-80"
+							>
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="white"
+									strokeWidth="2"
+									strokeLinecap="round"
+									strokeLinejoin="round"
+								>
+									<polyline points="17 11 12 6 7 11" />
+									<polyline points="17 18 12 13 7 18" />
+								</svg>
+							</button>
+						)}
+
 						<button
 							onTouchEnd={(e) => {
+								if (e.cancelable) e.preventDefault();
 								e.stopPropagation();
 								if (showDeleteConfirm) {
 									close();
@@ -598,6 +657,7 @@ function TaskRow({
 					>
 						<button
 							onTouchEnd={(e) => {
+								if (e.cancelable) e.preventDefault();
 								e.stopPropagation();
 								close();
 								handleStartClick(e as any);
@@ -608,6 +668,7 @@ function TaskRow({
 						</button>
 						<button
 							onTouchEnd={(e) => {
+								if (e.cancelable) e.preventDefault();
 								e.stopPropagation();
 								close();
 								onDone(task);
@@ -616,15 +677,16 @@ function TaskRow({
 						>
 							<Check className="w-4 h-4 text-white" />
 						</button>
-
-						{!isFirst && (
+						{/* SINK BUTTON */}
+						{!isLast && (
 							<button
 								onTouchEnd={(e) => {
+									if (e.cancelable) e.preventDefault();
 									e.stopPropagation();
 									close();
-									onPumpTask(task.id);
+									onSinkTask(task.id);
 								}}
-								className="w-12 flex items-center justify-center bg-[#6b7fa3] active:opacity-80"
+								className="w-12 flex items-center justify-center bg-[#a36b6b] active:opacity-80"
 							>
 								<svg
 									width="16"
@@ -636,8 +698,8 @@ function TaskRow({
 									strokeLinecap="round"
 									strokeLinejoin="round"
 								>
-									<polyline points="17 11 12 6 7 11" />
-									<polyline points="17 18 12 13 7 18" />
+									<polyline points="7 13 12 18 17 13" />
+									<polyline points="7 6 12 11 17 6" />
 								</svg>
 							</button>
 						)}
@@ -737,6 +799,8 @@ export function TaskList({
 	onSwitchTask,
 	onVisibleCapacityChange,
 	onPumpTask,
+	onSinkTask,
+	visibleTotalPages,
 }: TaskListProps) {
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -822,6 +886,19 @@ export function TaskList({
 			}
 		},
 		[loadingTaskIds, onPumpTask],
+	);
+
+	const handleSinkTask = useCallback(
+		async (taskId: string) => {
+			if (loadingTaskIds.has(taskId)) return;
+			addLoading(taskId);
+			try {
+				await onSinkTask(taskId);
+			} finally {
+				removeLoading(taskId);
+			}
+		},
+		[loadingTaskIds, onSinkTask],
 	);
 
 	const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -1058,7 +1135,7 @@ export function TaskList({
 						strategy={verticalListSortingStrategy}
 					>
 						<ul ref={listRef} className="divide-y divide-border">
-							{filteredTasks.map((task) => (
+							{filteredTasks.map((task, index) => (
 								<TaskRow
 									key={task.id}
 									task={task}
@@ -1073,7 +1150,12 @@ export function TaskList({
 									onSwitchTask={handleSwitchTask}
 									disabled={loadingTaskIds.has(task.id)}
 									onPumpTask={handlePumpTask}
-									isFirst={task.page_number === 1 && task.position === 0}
+									onSinkTask={handleSinkTask}
+									isFirst={index === 0 && task.page_number === 1}
+									isLast={
+										index === filteredTasks.length - 1 &&
+										task.page_number === visibleTotalPages
+									}
 								/>
 							))}
 						</ul>
@@ -1094,7 +1176,9 @@ export function TaskList({
 								disabled={false}
 								isDragOverlay
 								onPumpTask={() => {}}
+								onSinkTask={() => {}}
 								isFirst={false}
+								isLast={false}
 							/>
 						)}
 					</DragOverlay>
