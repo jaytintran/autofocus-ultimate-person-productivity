@@ -361,16 +361,52 @@ export function AutofocusApp() {
 		displayedActiveTasks,
 	]);
 
+	// FINAL FILTERED TASKS
+	const finalFilteredTasks = useMemo(() => {
+		let tasks = displayedActiveTasks;
+
+		// 1. Tag filter
+		if (selectedTags.size > 0) {
+			tasks = tasks.filter((task) => {
+				if (selectedTags.has("none")) return task.tag === null;
+				return task.tag && selectedTags.has(task.tag);
+			});
+		}
+
+		// 2. Search filter
+		if (debouncedSearchQuery.trim()) {
+			const q = debouncedSearchQuery.toLowerCase();
+			tasks = tasks.filter((task) => task.text.toLowerCase().includes(q));
+		}
+
+		// 3. Content filter (FINAL PASS)
+		tasks = applyContentFilter(tasks, contentFilter);
+
+		return tasks;
+	}, [displayedActiveTasks, selectedTags, debouncedSearchQuery, contentFilter]);
+
 	// Use filtered page and total when filter is active
 	const isSearchOrFilterActive =
 		isFilterActive || !!debouncedSearchQuery.trim();
 
-	const effectiveCurrentPage = isSearchOrFilterActive
+	const effectiveCurrentPageOld = isSearchOrFilterActive
 		? filteredCurrentPage
 		: currentPage;
-	const effectiveTotalPages = isSearchOrFilterActive
+	const effectiveTotalPagesOld = isSearchOrFilterActive
 		? filteredTotalPages
 		: displayedTotalPages;
+
+	const effectiveTotalPages = Math.max(
+		1,
+		Math.ceil(finalFilteredTasks.length / DEFAULT_TASK_CAPACITY),
+	);
+	const effectiveCurrentPage = currentPage;
+
+	const tasksForCurrentPage = useMemo(() => {
+		const start = (effectiveCurrentPage - 1) * DEFAULT_TASK_CAPACITY;
+		const end = start + DEFAULT_TASK_CAPACITY;
+		return finalFilteredTasks.slice(start, end);
+	}, [finalFilteredTasks, effectiveCurrentPage]);
 
 	// Pre-fetch adjacent pages (current + next 2 pages)
 	useEffect(() => {
@@ -483,7 +519,7 @@ export function AutofocusApp() {
 		contentFilter, // ← NEW dependency
 	]);
 
-	const tasksForCurrentPage = useMemo(() => {
+	const tasksForCurrentPageOldV3 = useMemo(() => {
 		const pageNum = effectiveCurrentPage;
 		const isAnyFilterActive =
 			isSearchOrFilterActive || contentFilter !== "default";
@@ -1898,6 +1934,10 @@ export function AutofocusApp() {
 	useEffect(() => {
 		setFilteredCurrentPage(1);
 	}, [selectedTags, searchQuery]);
+
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [selectedTags, debouncedSearchQuery, contentFilter]);
 
 	// Reset filtered page when content filter changes
 	useEffect(() => {
