@@ -46,7 +46,7 @@ function useIsMobile() {
 	return isMobile;
 }
 
-function useSwipeReveal(isFirst: boolean, isLast: boolean) {
+function useSwipeRevealOld(isFirst: boolean, isLast: boolean) {
 	const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(
 		null,
 	);
@@ -105,6 +105,98 @@ function useSwipeReveal(isFirst: boolean, isLast: boolean) {
 			setDragOffset(0);
 		}
 		startXRef.current = null;
+	}, []);
+
+	const close = useCallback(() => {
+		setSwipeDirection(null);
+		setDragOffset(0);
+	}, []);
+
+	const isDragging = startXRef.current !== null;
+	const swipedLeft = swipeDirection === "left";
+	const swipedRight = swipeDirection === "right";
+
+	return {
+		swipedLeft,
+		swipedRight,
+		dragOffset,
+		isDragging,
+		onTouchStart,
+		onTouchMove,
+		onTouchEnd,
+		close,
+	};
+}
+
+function useSwipeReveal(isFirst: boolean, isLast: boolean) {
+	const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(
+		null,
+	);
+	const [dragOffset, setDragOffset] = useState(0);
+	const startXRef = useRef<number | null>(null);
+	const startYRef = useRef<number | null>(null); // ← added for directional lock
+
+	const LEFT_TRAY_WIDTH = isFirst ? 96 : 144;
+	const RIGHT_TRAY_WIDTH = isLast ? 96 : 144;
+
+	const onTouchStart = useCallback(
+		(e: React.TouchEvent) => {
+			startXRef.current = e.touches[0].clientX;
+			startYRef.current = e.touches[0].clientY;
+			if (swipeDirection === "left") setDragOffset(-LEFT_TRAY_WIDTH);
+			else if (swipeDirection === "right") setDragOffset(RIGHT_TRAY_WIDTH);
+			else setDragOffset(0);
+		},
+		[swipeDirection],
+	);
+
+	const onTouchMove = useCallback(
+		(e: React.TouchEvent) => {
+			if (startXRef.current === null || startYRef.current === null) return;
+
+			const diffX = startXRef.current - e.touches[0].clientX;
+			const diffY = Math.abs(startYRef.current - e.touches[0].clientY);
+
+			const isMostlyHorizontal = Math.abs(diffX) > diffY + 10;
+
+			if (swipeDirection === "left") {
+				const base = -LEFT_TRAY_WIDTH;
+				setDragOffset(Math.min(0, Math.max(-LEFT_TRAY_WIDTH, base - diffX)));
+			} else if (swipeDirection === "right") {
+				const base = RIGHT_TRAY_WIDTH;
+				setDragOffset(Math.max(0, Math.min(RIGHT_TRAY_WIDTH, base - diffX)));
+			} else if (isMostlyHorizontal) {
+				if (diffX > 15) {
+					setDragOffset(Math.min(0, Math.max(-LEFT_TRAY_WIDTH, -diffX)));
+				} else if (diffX < -15) {
+					setDragOffset(Math.max(0, Math.min(RIGHT_TRAY_WIDTH, -diffX)));
+				}
+			}
+		},
+		[swipeDirection],
+	);
+
+	const onTouchEnd = useCallback((e: React.TouchEvent) => {
+		if (startXRef.current === null || startYRef.current === null) return;
+
+		const diffX = startXRef.current - e.changedTouches[0].clientX;
+		const diffY = Math.abs(startYRef.current - e.changedTouches[0].clientY);
+
+		const isMostlyHorizontal = Math.abs(diffX) > diffY + 20;
+
+		if (isMostlyHorizontal && diffX > 50) {
+			setSwipeDirection("left");
+			setDragOffset(-LEFT_TRAY_WIDTH);
+		} else if (isMostlyHorizontal && diffX < -50) {
+			setSwipeDirection("right");
+			setDragOffset(RIGHT_TRAY_WIDTH);
+		} else {
+			setSwipeDirection(null);
+			setDragOffset(0);
+		}
+
+		startXRef.current = null;
+		startYRef.current = null;
 	}, []);
 
 	const close = useCallback(() => {
@@ -385,7 +477,7 @@ function TaskRow({
 			>
 				{/* Sliding wrapper — this moves left to reveal buttons behind it */}
 				<div
-					className="relative flex items-center gap-2 px-3 py-2.5 w-full bg-background"
+					className="relative flex items-center gap-2 px-3 py-2.5 w-full bg-background touch-pan-y"
 					style={{
 						transform: isMobile ? `translateX(${dragOffset}px)` : undefined,
 						// Only use CSS transition when finger is lifted (snapping), not while dragging
@@ -443,7 +535,7 @@ function TaskRow({
 					</div>
 
 					{/* Right side badges */}
-					<div className="flex items-center gap-1.5 flex-shrink-0">
+					<div className="flex items-center gap-1.5 shrink-0">
 						{task.re_entered_from && !isEditing && (
 							<span className="text-[10px] px-1.5 py-0.5 rounded border border-[#c49a6b]/40 bg-[#c49a6b]/10 text-[#c49a6b] flex-shrink-0">
 								<RefreshCw className="w-2.5 h-2.5" />
