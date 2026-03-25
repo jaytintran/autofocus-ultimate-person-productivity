@@ -1968,6 +1968,7 @@ export function AutofocusApp() {
 						onPumpTask={handlePumpTask}
 						onSinkTask={handleSinkTask}
 						visibleTotalPages={getVisibleTotalPages(displayedActiveTasks)}
+						disableSwipeForWorkingTask={true}
 					/>
 				) : (
 					<CompletedList

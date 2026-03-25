@@ -234,7 +234,7 @@ function useSwipeReveal(isFirst: boolean, isLast: boolean) {
 	const RIGHT_TRAY_WIDTH = isLast ? 96 : 144;
 
 	// Edge threshold — adjust this (30–50px works well on mobile)
-	const EDGE_THRESHOLD = 40; // px from left or right edge
+	const EDGE_THRESHOLD = 180; // px from left or right edge
 
 	const onTouchStart = useCallback(
 		(e: React.TouchEvent) => {
@@ -414,6 +414,7 @@ interface TaskListProps {
 	onPumpTask: (taskId: string) => Promise<void>;
 	onSinkTask: (taskId: string) => Promise<void>;
 	visibleTotalPages: number;
+	disableSwipeForWorkingTask?: boolean;
 }
 
 const FALLBACK_TASK_ROW_HEIGHT = 48;
@@ -438,6 +439,7 @@ interface TaskRowProps {
 	onSinkTask: (taskId: string) => void;
 	isFirst: boolean;
 	isLast: boolean;
+	disableSwipe?: boolean;
 }
 
 function TaskRow({
@@ -457,6 +459,7 @@ function TaskRow({
 	isFirst,
 	onSinkTask,
 	isLast,
+	disableSwipe,
 }: TaskRowProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editText, setEditText] = useState(task.text);
@@ -588,6 +591,8 @@ function TaskRow({
 		}
 	};
 
+	const shouldDisableSwipe = disableSwipe || isWorking; // safety: also disable if isWorking
+
 	return (
 		<>
 			<li
@@ -596,13 +601,15 @@ function TaskRow({
 				data-task-id={task.id}
 				className={`
                 group relative flex ${isMobile ? "h-[50px]" : null}
-                ${isWorking ? "bg-[#8b9a6b]/5" : ""}
+                ${isWorking ? "bg-[#8b9a6b]/5 ring-1 ring-inset ring-[#8b9a6b]/30" : ""}
                 ${isDragOverlay ? "shadow-lg bg-background border border-border rounded-md" : ""}
                 transition-colors overflow-hidden
             `}
-				onTouchStart={isMobile ? onTouchStart : undefined}
-				onTouchMove={isMobile ? onTouchMove : undefined}
-				onTouchEnd={isMobile ? onTouchEnd : undefined}
+				onTouchStart={
+					isMobile && !shouldDisableSwipe ? onTouchStart : undefined
+				}
+				onTouchMove={isMobile && !shouldDisableSwipe ? onTouchMove : undefined}
+				onTouchEnd={isMobile && !shouldDisableSwipe ? onTouchEnd : undefined}
 			>
 				{/* Sliding wrapper — this moves left to reveal buttons behind it */}
 				<div
@@ -1022,6 +1029,7 @@ export function TaskList({
 	onPumpTask,
 	onSinkTask,
 	visibleTotalPages,
+	disableSwipeForWorkingTask = false,
 }: TaskListProps) {
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -1376,6 +1384,10 @@ export function TaskList({
 									isLast={
 										index === filteredTasks.length - 1 &&
 										task.page_number === visibleTotalPages
+									}
+									disableSwipe={
+										disableSwipeForWorkingTask === true &&
+										task.id === workingTaskId
 									}
 								/>
 							))}
