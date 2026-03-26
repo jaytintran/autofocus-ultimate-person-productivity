@@ -19,6 +19,9 @@ import {
 	ArrowUpDown,
 	LayoutList,
 	CalendarDays,
+	SquareCheckBig,
+	Square,
+	SquareCheck,
 } from "lucide-react";
 
 export type CompletedSortKey =
@@ -214,7 +217,7 @@ export function ViewTabs({
 							: "text-muted-foreground hover:text-foreground"
 					}`}
 				>
-					Tasks
+					<Square className="w-4.5 h-4.5" />
 				</button>
 				<button
 					onClick={() => onViewChange("completed")}
@@ -224,7 +227,7 @@ export function ViewTabs({
 							: "text-muted-foreground hover:text-foreground"
 					}`}
 				>
-					Completed
+					<SquareCheck className="w-4.5 h-4.5" />
 				</button>
 			</div>
 

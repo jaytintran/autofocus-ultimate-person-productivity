@@ -38,7 +38,7 @@ export function ContentFilterBar({ value, onChange }: ContentFilterBarProps) {
 		if (value.preset === "exclude-all") return "➖ All";
 
 		if (value.options.length === 0) return "All Types";
-		if (value.options.length === FILTER_OPTIONS.length) return "All Categories";
+		if (value.options.length === FILTER_OPTIONS.length) return "All Types";
 
 		return `${value.options.length} Selected`;
 	};
