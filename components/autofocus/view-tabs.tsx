@@ -92,6 +92,47 @@ function SortSelector({ value, onChange }: SortSelectorProps) {
 	);
 }
 
+function MainViewToggle({
+	activeView,
+	onChange,
+}: {
+	activeView: any;
+	onChange: (view: "tasks" | "completed") => void;
+}) {
+	return (
+		<div className="inline-flex bg-secondary rounded overflow-hidden w-fit">
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => onChange("tasks")}
+				className={`h8 rounded text-xs transition-colors ${
+					activeView === "tasks"
+						? "bg-accent! text-foreground"
+						: "text-muted-foreground hover:text-foreground"
+				}`}
+				title="Tasks View"
+			>
+				<span className="max-sm:hidden">Tasks</span>
+				<Square className="w-3.5 h-3.5 sm:hidden" />
+			</Button>
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => onChange("completed")}
+				className={`h8 rounded text-xs transition-colors ${
+					activeView === "completed"
+						? "bg-accent! text-foreground"
+						: "text-muted-foreground hover:text-foreground"
+				}`}
+				title="Completed View"
+			>
+				<span className="max-sm:hidden">Completed</span>
+				<SquareCheck className="w-3.5 h-3.5 sm:hidden" />
+			</Button>
+		</div>
+	);
+}
+
 function ViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
 	return (
 		<div className="inline-flex bg-secondary rounded overflow-hidden">
@@ -104,7 +145,7 @@ function ViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
 						? "bg-accent! text-foreground"
 						: "text-muted-foreground hover:text-foreground"
 				}`}
-				title="Default view"
+				title="Linear View"
 			>
 				<LayoutList className="w-3 h-3" />
 			</Button>
@@ -117,7 +158,7 @@ function ViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
 						? "bg-accent! text-foreground"
 						: "text-muted-foreground hover:text-foreground"
 				}`}
-				title="7 days view"
+				title="7 Days View"
 			>
 				<CalendarDays className="w-3.5 h-3.5" />
 			</Button>
@@ -139,60 +180,6 @@ interface ViewTabsProps {
 	onChangeContentFilter: (filter: ContentFilterState) => void;
 }
 
-export function ViewTabsOld({
-	activeView,
-	onViewChange,
-	selectedTags,
-	onToggleTag,
-	onAddTasks,
-	completedSort,
-	onCompletedSortChange,
-}: ViewTabsProps) {
-	return (
-		<div className="flex flex-row justify-between sm:flex-row sm:items-center sm:justify-between px-4 py-3">
-			<div className="inline-flex bg-secondary rounded overflow-hidden w-fit">
-				<button
-					onClick={() => onViewChange("tasks")}
-					className={`px-3 py-1.5 text-sm transition-colors ${
-						activeView === "tasks"
-							? "bg-accent text-foreground"
-							: "text-muted-foreground hover:text-foreground"
-					}`}
-				>
-					Tasks
-				</button>
-				<button
-					onClick={() => onViewChange("completed")}
-					className={`px-3 py-1.5 text-sm transition-colors ${
-						activeView === "completed"
-							? "bg-accent text-foreground"
-							: "text-muted-foreground hover:text-foreground"
-					}`}
-				>
-					Completed
-				</button>
-			</div>
-
-			<div className="flex items-center gap-2">
-				{/* Bulk add — tasks view only */}
-				{activeView === "tasks" && (
-					<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
-				)}
-
-				{/* Sort selector — completed view only */}
-				{activeView === "completed" && (
-					<SortSelector
-						value={completedSort}
-						onChange={onCompletedSortChange}
-					/>
-				)}
-
-				<TagFilter selectedTags={selectedTags} onToggleTag={onToggleTag} />
-			</div>
-		</div>
-	);
-}
-
 export function ViewTabs({
 	activeView,
 	onViewChange,
@@ -207,28 +194,16 @@ export function ViewTabs({
 	onChangeContentFilter,
 }: ViewTabsProps) {
 	return (
-		<div className="flex flex-row justify-between sm:flex-row sm:items-center sm:justify-between px-4 py-3">
-			<div className="inline-flex bg-secondary rounded overflow-hidden w-fit">
-				<button
-					onClick={() => onViewChange("tasks")}
-					className={`px-3 py-1.5 text-sm transition-colors ${
-						activeView === "tasks"
-							? "bg-accent text-foreground"
-							: "text-muted-foreground hover:text-foreground"
-					}`}
-				>
-					<Square className="w-4.5 h-4.5" />
-				</button>
-				<button
-					onClick={() => onViewChange("completed")}
-					className={`px-3 py-1.5 text-sm transition-colors ${
-						activeView === "completed"
-							? "bg-accent text-foreground"
-							: "text-muted-foreground hover:text-foreground"
-					}`}
-				>
-					<SquareCheck className="w-4.5 h-4.5" />
-				</button>
+		<div className="flex flex-row flex-wrap gap-2 justify-between sm:flex-row sm:items-center sm:justify-between px-4 py-3">
+			<div className="flex gap-2">
+				<MainViewToggle activeView={activeView} onChange={onViewChange} />
+
+				{activeView === "completed" && (
+					<ViewTypeToggle
+						value={completedViewType}
+						onChange={onCompletedViewTypeChange}
+					/>
+				)}
 			</div>
 
 			<div className="flex items-center gap-2">
@@ -237,10 +212,6 @@ export function ViewTabs({
 				)}
 				{activeView === "completed" && (
 					<>
-						<ViewTypeToggle
-							value={completedViewType}
-							onChange={onCompletedViewTypeChange}
-						/>
 						<SortSelector
 							value={completedSort}
 							onChange={onCompletedSortChange}

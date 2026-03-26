@@ -497,106 +497,120 @@ export function CompletedList({
 			<div className="flex-1 overflow-y-auto">
 				{completedViewType === "7days" ? (
 					// 7-day column view
-					<div className="grid grid-cols-7 divide-x divide-border h-full min-h-[400px]">
-						{sevenDayColumns.map((col) => (
-							<div key={col.key} className="flex flex-col min-w-0">
-								{/* Column header */}
-								<div className="px-2 py-2 border-b border-border bg-secondary/50 sticky top-0 z-10 text-center">
-									<p className="text-xs font-medium text-foreground">
-										{col.label}
-									</p>
-									<p className="text-[10px] text-muted-foreground">
-										{col.date}
-									</p>
-								</div>
+					<div className="h-full overflow-x-auto overflow-y-hidden">
+						{/* Horizontal scroll wrapper (mobile) */}
+						<div className="h-full overflow-x-auto custom-scrollbar">
+							<div className="flex md:grid md:grid-cols-7 divide-x divide-border h-full">
+								{sevenDayColumns.map((col) => (
+									<div
+										key={col.key}
+										className="flex flex-col min-w-[180px] sm:min-w-[220px] md:min-w-0 w-full"
+									>
+										{/* Header */}
+										<div className="px-2 py-2 border-b border-border bg-secondary/50 sticky top-0 z-10 text-center">
+											<p className="text-xs font-medium text-foreground">
+												{col.label}
+											</p>
+											<p className="text-[10px] text-muted-foreground">
+												{col.date}
+											</p>
+										</div>
 
-								{/* Column tasks */}
-								<div className="flex-1 overflow-y-auto p-1.5 space-y-1">
-									{col.tasks.length === 0 ? (
-										<p className="text-[10px] text-muted-foreground text-center mt-4 px-1 opacity-50">
-											—
-										</p>
-									) : (
-										col.tasks.map((task) => {
-											const isLoading = task.id === loadingTaskId;
-											return (
-												<div
-													key={task.id}
-													className={`group rounded-lg px-2 py-1.5 text-[11px] bg-secondary/50 hover:bg-secondary transition-colors space-y-1 ${isLoading ? "opacity-50" : ""}`}
-												>
-													<div className="flex items-start gap-1.5">
-														{/* Note chip or checkmark */}
-														{task.note ? (
-															<button
-																type="button"
-																onClick={() => setShowTaskModal(task.id)}
-																className="bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors"
-																title={task.note}
+										{/* Vertical scroll per column */}
+										<div
+											className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 space-y-1 custom-scrollbar"
+											style={{
+												WebkitOverflowScrolling: "touch",
+												touchAction: "pan-y",
+											}}
+										>
+											{/* Tasks */}
+											<div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+												{col.tasks.length === 0 ? (
+													<p className="text-[10px] text-muted-foreground text-center mt-4 px-1 opacity-50">
+														—
+													</p>
+												) : (
+													col.tasks.map((task) => {
+														const isLoading = task.id === loadingTaskId;
+														return (
+															<div
+																key={task.id}
+																className={`group rounded-lg px-2 py-1.5 text-[11px] bg-secondary/50 hover:bg-secondary transition-colors space-y-1 ${isLoading ? "opacity-50" : ""}`}
 															>
-																<Info className="w-3 h-3" />
-															</button>
-														) : null}
-														<div className="flex-1 min-w-0">
-															<p
-																className="text-foreground line-through opacity-60 leading-snug break-words cursor-pointer"
-																onClick={() => setShowTaskModal(task.id)}
-															>
-																{task.text}
-															</p>
-														</div>
-													</div>
-													<div className="flex items-center gap-1 flex-wrap">
-														{task.completed_at && (
-															<span className="text-muted-foreground opacity-60">
-																{formatCompletionTime(task.completed_at)}
-															</span>
-														)}
-														{task.total_time_ms > 0 && (
-															<span className="text-[#8b9a6b]">
-																{formatTimeCompact(task.total_time_ms)}
-															</span>
-														)}
-														<TagPill
-															tagId={task.tag}
-															onSelectTag={(tag) =>
-																handleUpdateTag(task.id, tag)
-															}
-															disabled={
-																loadingTagTaskId === task.id || isLoading
-															}
-															className="scale-90 origin-left"
-														/>
-													</div>
+																<div className="flex items-start gap-1.5">
+																	{task.note && (
+																		<button
+																			type="button"
+																			onClick={() => setShowTaskModal(task.id)}
+																			className="bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors"
+																		>
+																			<Info className="w-3 h-3" />
+																		</button>
+																	)}
+																	<div className="flex-1 min-w-0">
+																		<p
+																			className="text-foreground line-through opacity-60 leading-snug break-words cursor-pointer"
+																			onClick={() => setShowTaskModal(task.id)}
+																		>
+																			{task.text}
+																		</p>
+																	</div>
+																</div>
 
-													<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-														<button
-															type="button"
-															onClick={() => handleRevert(task)}
-															disabled={isLoading}
-															className="p-0.5 hover:bg-accent rounded transition-colors"
-															title="Revert task"
-														>
-															<RotateCcw className="w-3 h-3 text-muted-foreground" />
-														</button>
-														<button
-															type="button"
-															onClick={() => handleDelete(task.id)}
-															disabled={isLoading}
-															className={`p-0.5 rounded transition-colors ${showDeleteConfirm === task.id ? "bg-destructive/20" : "hover:bg-accent"}`}
-															title="Delete task"
-														>
-															<Trash2
-																className={`w-3 h-3 ${showDeleteConfirm === task.id ? "text-destructive" : "text-muted-foreground"}`}
-															/>
-														</button>
-													</div>
-												</div>
-											);
-										})
-									)}
-								</div>
+																<div className="flex items-center gap-1 flex-wrap">
+																	{task.completed_at && (
+																		<span className="text-muted-foreground opacity-60">
+																			{formatCompletionTime(task.completed_at)}
+																		</span>
+																	)}
+																	{task.total_time_ms > 0 && (
+																		<span className="text-[#8b9a6b]">
+																			{formatTimeCompact(task.total_time_ms)}
+																		</span>
+																	)}
+																	<TagPill
+																		tagId={task.tag}
+																		onSelectTag={(tag) =>
+																			handleUpdateTag(task.id, tag)
+																		}
+																		disabled={
+																			loadingTagTaskId === task.id || isLoading
+																		}
+																		className="scale-90 origin-left"
+																	/>
+																</div>
+
+																<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+																	<button
+																		type="button"
+																		onClick={() => handleRevert(task)}
+																		disabled={isLoading}
+																		className="p-0.5 hover:bg-accent rounded transition-colors"
+																	>
+																		<RotateCcw className="w-3 h-3 text-muted-foreground" />
+																	</button>
+																	<button
+																		type="button"
+																		onClick={() => handleDelete(task.id)}
+																		disabled={isLoading}
+																		className={`p-0.5 rounded transition-colors ${showDeleteConfirm === task.id ? "bg-destructive/20" : "hover:bg-accent"}`}
+																	>
+																		<Trash2
+																			className={`w-3 h-3 ${showDeleteConfirm === task.id ? "text-destructive" : "text-muted-foreground"}`}
+																		/>
+																	</button>
+																</div>
+															</div>
+														);
+													})
+												)}
+											</div>
+										</div>
+									</div>
+								))}
 							</div>
-						))}
+						</div>
 					</div>
 				) : (
 					<>
