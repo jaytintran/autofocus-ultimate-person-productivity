@@ -331,6 +331,11 @@ export function AutofocusApp() {
 		[achievementTasks],
 	);
 
+	// Add filtered completed tasks computation
+	const filteredCompletedTasks = useMemo(() => {
+		return applyContentFilter(displayedCompletedTasks, contentFilter);
+	}, [displayedCompletedTasks, contentFilter]);
+
 	// -------------------------------------------------------------------------
 	// Effects
 	// -------------------------------------------------------------------------
@@ -1813,7 +1818,8 @@ export function AutofocusApp() {
 					/>
 				) : (
 					<CompletedList
-						tasks={displayedCompletedTasks}
+						// tasks={displayedCompletedTasks}
+						tasks={filteredCompletedTasks}
 						selectedTags={selectedTags}
 						completedSort={completedSort}
 						completedViewType={completedViewType}

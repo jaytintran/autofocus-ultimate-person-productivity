@@ -19,6 +19,7 @@ import type { Task } from "@/lib/types";
 import type { TagId } from "@/lib/tags";
 import type { CompletedSortKey } from "./view-tabs";
 import type { CompletedViewType } from "./view-tabs";
+import type { ContentFilterState } from "@/lib/content-filter";
 
 import {
 	Dialog,
@@ -43,6 +44,7 @@ interface CompletedListProps {
 	onUpdateTaskTag?: (taskId: string, tag: TagId | null) => Promise<void>;
 	onUpdateTaskNote?: (taskId: string, note: string | null) => Promise<void>;
 	onUpdateTaskText?: (taskId: string, text: string) => Promise<void>;
+	contentFilter?: ContentFilterState; // Add this line
 }
 
 function formatCompletionTime(dateString: string): string {
@@ -137,11 +139,11 @@ function getTimePeriodColor(
 ): string {
 	switch (period) {
 		case "morning":
-			return "bg-sky-100/80 dark:bg-sky-950/70";
+			return "bg-secondary/60 text-secondary-foreground border border-border/40";
 		case "afternoon":
-			return "bg-amber-100/80 dark:bg-amber-950/40";
+			return "bg-af4-olive-muted/60 text-foreground border border-border/30";
 		case "evening":
-			return "bg-blue-100/80 dark:bg-blue-950/20";
+			return "bg-accent/50 text-accent-foreground border border-border/20";
 	}
 }
 

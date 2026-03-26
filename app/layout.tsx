@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, Rubik } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/components/theme-provider";
-import "./globals.css";
+import "@/app/globals.css";
 
 const geistMono = Geist_Mono({
 	subsets: ["latin"],
@@ -36,8 +36,10 @@ export default function RootLayout({
 			<body className="font-sans antialiased">
 				<ThemeProvider
 					attribute="class"
-					defaultTheme="dark"
+					defaultTheme="mossy"
+					themes={["light", "dark", "golden-twilight", "mossy-woods"]}
 					enableSystem={false}
+					disableTransitionOnChange
 				>
 					{children}
 				</ThemeProvider>

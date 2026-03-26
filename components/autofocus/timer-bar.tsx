@@ -378,7 +378,7 @@ export function TimerBar({
 								value={focusQuery}
 								onChange={handleFocusChange}
 								onKeyDown={handleFocusKeyDown}
-								placeholder="What are you working on? Search tasks, or type to create one — use # to tag"
+								placeholder="What are you working on? Search | Create a task.Use # to tag, ! to set a due date"
 								className="flex-1 bg-transparent border-none outline-none text-lg md:text-xl text-foreground placeholder:text-muted-foreground/50 placeholder:text-sm md:placeholder:text-base"
 								autoFocus
 							/>
