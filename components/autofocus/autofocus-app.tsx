@@ -19,6 +19,7 @@ import { PageNav } from "./page-nav";
 import { TaskList } from "./task-list";
 import { CompletedList } from "./completed-list";
 import { TaskInput } from "./task-input";
+import { AchievementChip } from "./achievement-chip";
 
 // Store & Types
 import {
@@ -77,11 +78,6 @@ import {
 	getTaskAge,
 } from "@/lib/utils/time-utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useAchievementTimer } from "@/hooks/use-achievement-timer";
-import {
-	useAchievementPlaceholder,
-	ACHIEVEMENT_PLACEHOLDERS,
-} from "@/hooks/use-achievement-placeholder";
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -203,10 +199,9 @@ export function AutofocusApp() {
 	// -------------------------------------------------------------------------
 	// State - Achievement Toast
 	// -------------------------------------------------------------------------
-	const [achievementPending, setAchievementPending] =
-		useState<AchievementPending | null>(null);
-	const [achievementNote, setAchievementNote] = useState("");
-	const placeholderIndex = useAchievementPlaceholder(achievementPending);
+	const [achievementQueue, setAchievementQueue] = useState<
+		AchievementPending[]
+	>([]);
 
 	// -------------------------------------------------------------------------
 	// Data Fetching
@@ -785,8 +780,10 @@ export function AutofocusApp() {
 	);
 
 	const handleDoneTask = useCallback(async (task: Task) => {
-		setAchievementNote("");
-		setAchievementPending({ task, sessionMs: 0, type: "done" });
+		setAchievementQueue((prev) => [
+			...prev,
+			{ task, sessionMs: 0, type: "done" },
+		]);
 	}, []);
 
 	const handleDeleteTask = useCallback(
@@ -1188,8 +1185,10 @@ export function AutofocusApp() {
 
 	const handleCompleteWorkingTask = useCallback(
 		async (task: Task, sessionMs: number) => {
-			setAchievementNote("");
-			setAchievementPending({ task, sessionMs, type: "complete" });
+			setAchievementQueue((prev) => [
+				...prev,
+				{ task, sessionMs, type: "complete" },
+			]);
 		},
 		[],
 	);
@@ -1612,33 +1611,27 @@ export function AutofocusApp() {
 		],
 	);
 
-	const handleAchievementSubmit = useCallback(async () => {
-		if (!achievementPending) return;
-		const { task, sessionMs, type } = achievementPending;
-		setAchievementPending(null);
-		if (type === "done") await commitDoneTask(task, achievementNote);
-		else await commitCompleteWorkingTask(task, sessionMs, achievementNote);
-		setAchievementNote("");
-	}, [
-		achievementPending,
-		achievementNote,
-		commitDoneTask,
-		commitCompleteWorkingTask,
-	]);
+	// Chip: commit the front item with a note and pop it from the queue
+	const handleChipCommit = useCallback(
+		async (item: AchievementPending, note: string) => {
+			setAchievementQueue((prev) => prev.filter((_, i) => i !== 0));
+			if (item.type === "done") await commitDoneTask(item.task, note);
+			else await commitCompleteWorkingTask(item.task, item.sessionMs, note);
+		},
+		[commitDoneTask, commitCompleteWorkingTask],
+	);
 
-	// Achievement timer auto-dismiss
-	const handleAchievementTimeout = useCallback(() => {
-		setAchievementPending((pending) => {
-			if (!pending) return null;
-			const { task, sessionMs, type } = pending;
-			if (type === "done") commitDoneTask(task, "");
-			else commitCompleteWorkingTask(task, sessionMs, "");
-			return null;
-		});
-		setAchievementNote("");
-	}, [commitDoneTask, commitCompleteWorkingTask]);
-
-	useAchievementTimer(achievementPending, handleAchievementTimeout);
+	// Chip: 5 s elapsed — commit entire remaining queue with empty notes
+	const handleChipDismissAll = useCallback(
+		async (remaining: AchievementPending[]) => {
+			setAchievementQueue([]);
+			for (const item of remaining) {
+				if (item.type === "done") await commitDoneTask(item.task, "");
+				else await commitCompleteWorkingTask(item.task, item.sessionMs, "");
+			}
+		},
+		[commitDoneTask, commitCompleteWorkingTask],
+	);
 
 	// -------------------------------------------------------------------------
 	// Callbacks - Task Updates
@@ -1837,85 +1830,16 @@ export function AutofocusApp() {
 			</main>
 
 			{activeView === "tasks" && (
-				<TaskInput onAddTask={handleAddTask} selectedTags={selectedTags} />
-			)}
+				<>
+					<AchievementChip
+						queue={achievementQueue}
+						onCommit={handleChipCommit}
+						onDismissAll={handleChipDismissAll}
+					/>
 
-			<AnimatePresence>
-				{achievementPending && (
-					<>
-						<motion.div
-							key="achievement-backdrop"
-							initial={{ opacity: 0 }}
-							animate={{ opacity: 1 }}
-							exit={{ opacity: 0 }}
-							transition={{ duration: 0.2 }}
-							className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm"
-							onClick={() => {
-								const { task, sessionMs, type } = achievementPending;
-								setAchievementPending(null);
-								if (type === "done") commitDoneTask(task, "");
-								else commitCompleteWorkingTask(task, sessionMs, "");
-								setAchievementNote("");
-							}}
-						/>
-						<div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none px-4">
-							<motion.div
-								key="achievement-toast"
-								initial={{ opacity: 0, scale: 0.92, y: 16 }}
-								animate={{ opacity: 1, scale: 1, y: 0 }}
-								exit={{ opacity: 0, scale: 0.92, y: 16 }}
-								transition={{ type: "spring", stiffness: 400, damping: 28 }}
-								className="bg-card border border-border rounded-xl shadow-lg p-4 flex flex-col gap-3 w-full max-w-sm pointer-events-auto"
-								onClick={(e) => e.stopPropagation()}
-							>
-								<div className="text-sm uppercase font-medium text-foreground mb-1.5">
-									{ACHIEVEMENT_PLACEHOLDERS[placeholderIndex]}
-								</div>
-								<input
-									autoFocus
-									type="text"
-									value={achievementNote}
-									onChange={(e) => {
-										setAchievementNote(e.target.value);
-									}}
-									onKeyDown={(e) => {
-										if (e.key === "Enter") handleAchievementSubmit();
-										if (e.key === "Escape") {
-											const { task, sessionMs, type } = achievementPending;
-											setAchievementPending(null);
-											if (type === "done") commitDoneTask(task, "");
-											else commitCompleteWorkingTask(task, sessionMs, "");
-											setAchievementNote("");
-										}
-									}}
-									placeholder="e.g. Finished a 10km run for the first time"
-									className="w-full bg-background border border-input rounded-lg px-3 py-2 mb-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-								/>
-								<div className="flex gap-2 justify-end w-full">
-									<button
-										onClick={() => {
-											const { task, sessionMs, type } = achievementPending;
-											setAchievementPending(null);
-											if (type === "done") commitDoneTask(task, "");
-											else commitCompleteWorkingTask(task, sessionMs, "");
-											setAchievementNote("");
-										}}
-										className="w-1/2 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 border border-muted-foreground rounded-lg hover:bg-muted transition-colors"
-									>
-										Skip
-									</button>
-									<button
-										onClick={handleAchievementSubmit}
-										className="w-1/2 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
-									>
-										Save
-									</button>
-								</div>
-							</motion.div>
-						</div>
-					</>
-				)}
-			</AnimatePresence>
+					<TaskInput onAddTask={handleAddTask} selectedTags={selectedTags} />
+				</>
+			)}
 		</div>
 	);
 }
