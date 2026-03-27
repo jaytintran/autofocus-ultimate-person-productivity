@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Task, AppState, TaskStatus } from "@/lib/types";
+import type { Task, AppState, TaskStatus, Pamphlet } from "@/lib/types";
 import { TagId } from "@/lib/tags";
+import type { PamphletColor } from "@/lib/pamphlet-colors";
 
 const APP_STATE_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -112,6 +113,7 @@ export async function addTask(
 	position: number,
 	tag?: TagId | null,
 	dueDate?: string | null,
+	pamphletId?: string | null,
 ): Promise<Task> {
 	const supabase = createClient();
 
@@ -151,6 +153,7 @@ export async function addTask(
 			status: "active",
 			tag: tag ?? null,
 			due_date: dueDate ?? null,
+			pamphlet_id: pamphletId ?? null,
 		})
 		.select()
 		.single();
@@ -169,6 +172,7 @@ export async function addMultipleTasks(
 		position: number;
 		tag?: TagId | null;
 		dueDate?: string | null;
+		pamphletId?: string | null;
 	}>,
 ): Promise<Task[]> {
 	const supabase = createClient();
@@ -212,6 +216,7 @@ export async function addMultipleTasks(
 				status: "active" as TaskStatus,
 				tag: t.tag ?? null,
 				due_date: t.dueDate ?? null,
+				pamphlet_id: t.pamphletId ?? null,
 			})),
 		)
 		.select();
@@ -239,7 +244,7 @@ export async function updateTask(
 	return data;
 }
 
-export async function completeTask(
+export async function completeTaskOld(
 	id: string,
 	totalTimeMs: number,
 ): Promise<Task> {
@@ -288,7 +293,59 @@ export async function completeTask(
 	return data;
 }
 
-// dismissTask function removed
+export async function completeTask(
+	id: string,
+	totalTimeMs: number,
+	pamphletId?: string | null,
+): Promise<Task> {
+	const supabase = createClient();
+
+	const { data, error } = await supabase
+		.from("tasks")
+		.update({
+			status: "completed",
+			completed_at: new Date().toISOString(),
+			total_time_ms: totalTimeMs,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", id)
+		.select()
+		.single();
+
+	if (error) throw error;
+
+	let reindexQuery = supabase
+		.from("tasks")
+		.select("id, page_number, position")
+		.in("status", ["active", "in-progress"]);
+
+	if (pamphletId) reindexQuery = reindexQuery.eq("pamphlet_id", pamphletId);
+
+	const { data: remainingTasks, error: fetchError } = await reindexQuery
+		.order("page_number", { ascending: true })
+		.order("position", { ascending: true });
+
+	if (fetchError) throw fetchError;
+	if (!remainingTasks || remainingTasks.length === 0) return data;
+
+	const PAGE_SIZE = 12;
+	const now = new Date().toISOString();
+
+	for (const [index, task] of remainingTasks.entries()) {
+		const { error: updateError } = await supabase
+			.from("tasks")
+			.update({
+				page_number: Math.floor(index / PAGE_SIZE) + 1,
+				position: index % PAGE_SIZE,
+				updated_at: now,
+			})
+			.eq("id", task.id);
+
+		if (updateError) throw updateError;
+	}
+
+	return data;
+}
 
 export async function reenterTask(
 	originalTaskId: string,
@@ -297,6 +354,7 @@ export async function reenterTask(
 	position: number,
 	totalTimeMs?: number,
 	tag?: TagId | null,
+	pamphletId?: string | null,
 ): Promise<Task> {
 	const supabase = createClient();
 	const { data, error } = await supabase
@@ -309,6 +367,7 @@ export async function reenterTask(
 			total_time_ms: totalTimeMs || 0,
 			re_entered_from: originalTaskId,
 			tag: tag ?? null,
+			pamphlet_id: pamphletId ?? null,
 		})
 		.select()
 		.single();
@@ -317,7 +376,7 @@ export async function reenterTask(
 	return data;
 }
 
-export async function deleteTask(id: string): Promise<void> {
+export async function deleteTaskOld(id: string): Promise<void> {
 	const supabase = createClient();
 
 	const { data: deletedTask, error: fetchError } = await supabase
@@ -341,6 +400,60 @@ export async function deleteTask(id: string): Promise<void> {
 		.from("tasks")
 		.select("id, page_number, position")
 		.in("status", ["active", "in-progress"])
+		.order("page_number", { ascending: true })
+		.order("position", { ascending: true });
+
+	if (reorderFetchError) throw reorderFetchError;
+	if (!remainingTasks || remainingTasks.length === 0) return;
+
+	const PAGE_SIZE = 12;
+	const now = new Date().toISOString();
+
+	for (const [index, task] of remainingTasks.entries()) {
+		const { error } = await supabase
+			.from("tasks")
+			.update({
+				page_number: Math.floor(index / PAGE_SIZE) + 1,
+				position: index % PAGE_SIZE,
+				updated_at: now,
+			})
+			.eq("id", task.id);
+
+		if (error) throw error;
+	}
+}
+
+export async function deleteTask(
+	id: string,
+	pamphletId?: string | null,
+): Promise<void> {
+	const supabase = createClient();
+
+	const { data: deletedTask, error: fetchError } = await supabase
+		.from("tasks")
+		.select("page_number, position, status")
+		.eq("id", id)
+		.single();
+
+	if (fetchError) throw fetchError;
+
+	const { error: deleteError } = await supabase
+		.from("tasks")
+		.delete()
+		.eq("id", id);
+
+	if (deleteError) throw deleteError;
+
+	if (!deletedTask || deletedTask.status === "completed") return;
+
+	let reindexQuery = supabase
+		.from("tasks")
+		.select("id, page_number, position")
+		.in("status", ["active", "in-progress"]);
+
+	if (pamphletId) reindexQuery = reindexQuery.eq("pamphlet_id", pamphletId);
+
+	const { data: remainingTasks, error: reorderFetchError } = await reindexQuery
 		.order("page_number", { ascending: true })
 		.order("position", { ascending: true });
 
@@ -621,35 +734,6 @@ export async function reorderTasks(
 	}
 }
 
-export async function revertTaskOld(taskId: string): Promise<Task> {
-	const supabase = createClient();
-
-	// Get the max position on the last page
-	const activeTasks = await getActiveTasks();
-	const maxPage =
-		activeTasks.length > 0
-			? Math.max(...activeTasks.map((t) => t.page_number))
-			: 1;
-	const nextPosition = await getNextPosition(maxPage);
-
-	const { data, error } = await supabase
-		.from("tasks")
-		.update({
-			status: "active",
-			completed_at: null,
-			total_time_ms: 0,
-			page_number: maxPage,
-			position: nextPosition,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("id", taskId)
-		.select()
-		.single();
-
-	if (error) throw error;
-	return data;
-}
-
 export async function revertTaskLastPosition(taskId: string): Promise<Task> {
 	const supabase = createClient();
 
@@ -686,7 +770,7 @@ export async function revertTaskLastPosition(taskId: string): Promise<Task> {
 	return data;
 }
 
-export async function revertTask(taskId: string): Promise<Task> {
+export async function revertTaskOld(taskId: string): Promise<Task> {
 	const supabase = createClient();
 	const PAGE_SIZE = 12;
 	const now = new Date().toISOString();
@@ -732,18 +816,48 @@ export async function revertTask(taskId: string): Promise<Task> {
 	return data;
 }
 
-export async function markTaskDoneOld(
+export async function revertTask(
 	taskId: string,
-	totalTimeMs: number = 0,
+	pamphletId?: string | null,
 ): Promise<Task> {
 	const supabase = createClient();
+	const PAGE_SIZE = 12;
+	const now = new Date().toISOString();
+
+	let reindexQuery = supabase
+		.from("tasks")
+		.select("id, page_number, position")
+		.in("status", ["active", "in-progress"]);
+
+	if (pamphletId) reindexQuery = reindexQuery.eq("pamphlet_id", pamphletId);
+
+	const { data: existingTasks, error: fetchError } = await reindexQuery
+		.order("page_number", { ascending: true })
+		.order("position", { ascending: true });
+
+	if (fetchError) throw fetchError;
+
+	for (const [index, task] of (existingTasks || []).entries()) {
+		const { error } = await supabase
+			.from("tasks")
+			.update({
+				page_number: Math.floor((index + 1) / PAGE_SIZE) + 1,
+				position: (index + 1) % PAGE_SIZE,
+				updated_at: now,
+			})
+			.eq("id", task.id);
+
+		if (error) throw error;
+	}
+
 	const { data, error } = await supabase
 		.from("tasks")
 		.update({
-			status: "completed",
-			completed_at: new Date().toISOString(),
-			total_time_ms: totalTimeMs,
-			updated_at: new Date().toISOString(),
+			status: "active",
+			completed_at: null,
+			page_number: 1,
+			position: 0,
+			updated_at: now,
 		})
 		.eq("id", taskId)
 		.select()
@@ -753,7 +867,7 @@ export async function markTaskDoneOld(
 	return data;
 }
 
-export async function markTaskDone(
+export async function markTaskDoneOld(
 	taskId: string,
 	totalTimeMs: number = 0,
 ): Promise<Task> {
@@ -806,6 +920,60 @@ export async function markTaskDone(
 				updated_at: update.updated_at,
 			})
 			.eq("id", update.id);
+
+		if (updateError) throw updateError;
+	}
+
+	return data;
+}
+
+export async function markTaskDone(
+	taskId: string,
+	totalTimeMs: number = 0,
+	pamphletId?: string | null,
+): Promise<Task> {
+	const supabase = createClient();
+
+	const { data, error } = await supabase
+		.from("tasks")
+		.update({
+			status: "completed",
+			completed_at: new Date().toISOString(),
+			total_time_ms: totalTimeMs,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", taskId)
+		.select()
+		.single();
+
+	if (error) throw error;
+
+	let reindexQuery = supabase
+		.from("tasks")
+		.select("id, page_number, position")
+		.in("status", ["active", "in-progress"]);
+
+	if (pamphletId) reindexQuery = reindexQuery.eq("pamphlet_id", pamphletId);
+
+	const { data: remainingTasks, error: fetchError } = await reindexQuery
+		.order("page_number", { ascending: true })
+		.order("position", { ascending: true });
+
+	if (fetchError) throw fetchError;
+	if (!remainingTasks || remainingTasks.length === 0) return data;
+
+	const PAGE_SIZE = 12;
+	const now = new Date().toISOString();
+
+	for (const [index, task] of remainingTasks.entries()) {
+		const { error: updateError } = await supabase
+			.from("tasks")
+			.update({
+				page_number: Math.floor(index / PAGE_SIZE) + 1,
+				position: index % PAGE_SIZE,
+				updated_at: now,
+			})
+			.eq("id", task.id);
 
 		if (updateError) throw updateError;
 	}
@@ -875,5 +1043,128 @@ export async function getTasksWithNotes(): Promise<Task[]> {
 		.order("completed_at", { ascending: false });
 
 	if (error) throw error;
-	return data ?? [];
+	return Array.isArray(data) ? data : [];
+}
+
+// =============================================================================
+// PAMPHLET FUNCTIONS
+// =============================================================================
+
+export async function getPamphlets(): Promise<Pamphlet[]> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("pamphlets")
+		.select("*")
+		.order("position", { ascending: true });
+
+	if (error) throw error;
+	return data || [];
+}
+
+export async function createPamphlet(
+	name: string,
+	color: PamphletColor,
+	position: number,
+): Promise<Pamphlet> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("pamphlets")
+		.insert({ name, color, position })
+		.select()
+		.single();
+
+	if (error) throw error;
+	return data;
+}
+
+export async function updatePamphlet(
+	id: string,
+	updates: Partial<Pick<Pamphlet, "name" | "color" | "position">>,
+): Promise<Pamphlet> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("pamphlets")
+		.update({ ...updates, updated_at: new Date().toISOString() })
+		.eq("id", id)
+		.select()
+		.single();
+
+	if (error) throw error;
+	return data;
+}
+
+export async function deletePamphlet(id: string): Promise<void> {
+	const supabase = createClient();
+	const { error } = await supabase.from("pamphlets").delete().eq("id", id);
+
+	if (error) throw error;
+}
+
+export async function reassignPamphletTasks(
+	fromPamphletId: string,
+	toPamphletId: string,
+): Promise<void> {
+	const supabase = createClient();
+	const { error } = await supabase
+		.from("tasks")
+		.update({
+			pamphlet_id: toPamphletId,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("pamphlet_id", fromPamphletId);
+
+	if (error) throw error;
+}
+
+export async function getActiveTasksForPamphlet(
+	pamphletId: string,
+): Promise<Task[]> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tasks")
+		.select("*")
+		.eq("pamphlet_id", pamphletId)
+		.in("status", ["active", "in-progress"])
+		.order("page_number", { ascending: true })
+		.order("position", { ascending: true });
+
+	if (error) throw error;
+	return data || [];
+}
+
+export async function getCompletedTasksForPamphlet(
+	pamphletId: string,
+	page: number = 1,
+): Promise<Task[]> {
+	const supabase = createClient();
+	const from = (page - 1) * 50;
+	const to = from + 49;
+
+	const { data, error } = await supabase
+		.from("tasks")
+		.select("*")
+		.eq("pamphlet_id", pamphletId)
+		.eq("status", "completed")
+		.order("completed_at", { ascending: false })
+		.range(from, to);
+
+	if (error) throw error;
+	return data || [];
+}
+
+export async function getTotalPageCountForPamphlet(
+	pamphletId: string,
+): Promise<number> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tasks")
+		.select("page_number")
+		.eq("pamphlet_id", pamphletId)
+		.in("status", ["active", "in-progress"])
+		.order("page_number", { ascending: false })
+		.limit(1);
+
+	if (error) throw error;
+	if (!data || data.length === 0) return 1;
+	return data[0].page_number;
 }

@@ -19,6 +19,7 @@ export interface Task {
 	created_at: string;
 	updated_at: string;
 	due_date: string | null;
+	pamphlet_id: string | null;
 }
 
 export interface AppState {
@@ -71,3 +72,27 @@ export interface AchievementPending {
 	sessionMs: number;
 	type: "done" | "complete";
 }
+
+export interface Pamphlet {
+	id: string;
+	name: string;
+	color: PamphletColor;
+	position: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export const PAMPHLET_COLOR_VALUES = [
+	"slate",
+	"red",
+	"orange",
+	"amber",
+	"green",
+	"teal",
+	"blue",
+	"violet",
+	"pink",
+	"rose",
+] as const;
+
+export type PamphletColor = (typeof PAMPHLET_COLOR_VALUES)[number];
