@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { AchievementPending, Pamphlet } from "@/lib/types";
 import { PAMPHLET_COLORS } from "@/lib/pamphlet-colors";
+import { X } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -126,6 +127,14 @@ export function AchievementChip({
 		}
 	};
 
+	const handleDismiss = async () => {
+		if (!current) return;
+		if (timerRef.current) clearInterval(timerRef.current);
+		setExpanded(false);
+		setNote("");
+		await onDismissAll(queueRef.current);
+	};
+
 	const handleSave = async () => {
 		if (!current) return;
 		setExpanded(false);
@@ -205,6 +214,13 @@ export function AchievementChip({
 										className="shrink-0 rounded-md border border-border px-2.5 py-1 text-[12px] text-muted-foreground transition-colors hover:border-border/80 hover:bg-muted hover:text-foreground"
 									>
 										Add a note →
+									</button>
+									<button
+										onClick={handleDismiss}
+										className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+										title="Dismiss"
+									>
+										<X className="w-3.5 h-3.5" />
 									</button>
 								</div>
 							) : (

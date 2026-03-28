@@ -283,14 +283,24 @@ export function AutofocusApp() {
 	const isSearchOrFilterActive =
 		isFilterActive || !!debouncedSearchQuery.trim();
 
+	const { data: allActiveTasks = [], mutate: mutateAllActive } = useSWR<Task[]>(
+		"all-active-tasks",
+		getActiveTasks,
+		{ refreshInterval: 0 },
+	);
+
 	const workingTask = useMemo(() => {
 		if (!displayedAppState?.working_on_task_id) return null;
-		return (
-			displayedActiveTasks.find(
-				(t) => t.id === displayedAppState.working_on_task_id,
-			) || null
-		);
-	}, [displayedActiveTasks, displayedAppState?.working_on_task_id]);
+		const id = displayedAppState.working_on_task_id;
+
+		// Check optimistic state first — this is what makes it instant
+		const optimisticMatch =
+			optimisticState?.activeTasks.find((t) => t.id === id) ?? null;
+		if (optimisticMatch) return optimisticMatch;
+
+		// Fall back to cross-pamphlet real data
+		return allActiveTasks.find((t) => t.id === id) ?? null;
+	}, [optimisticState, allActiveTasks, displayedAppState?.working_on_task_id]);
 
 	// -------------------------------------------------------------------------
 	// Filtered Tasks Computation
@@ -463,11 +473,18 @@ export function AutofocusApp() {
 		setHasMoreCompleted(true);
 		await Promise.all([
 			mutateActive(),
+			mutateAllActive(),
 			mutateCompleted(),
 			mutateAppState(),
 			mutateTotalPages(),
 		]);
-	}, [mutateActive, mutateCompleted, mutateAppState, mutateTotalPages]);
+	}, [
+		mutateActive,
+		mutateAllActive,
+		mutateCompleted,
+		mutateAppState,
+		mutateTotalPages,
+	]);
 
 	const runOptimisticUpdate = useCallback(
 		async (nextState: OptimisticStateSnapshot, action: () => Promise<void>) => {
@@ -1205,11 +1222,15 @@ export function AutofocusApp() {
 					0,
 					tag ?? null,
 					dueDate ?? null,
+					activePamphletId,
 				);
 				await startTask(createdTask.id);
-				await mutateActive();
-				await mutateAppState();
-				await mutateTotalPages();
+				await Promise.all([
+					mutateActive(),
+					mutateAllActive(),
+					mutateAppState(),
+					mutateTotalPages(),
+				]);
 				setOptimisticState(null);
 				return createdTask;
 			} catch (error) {
@@ -1224,6 +1245,7 @@ export function AutofocusApp() {
 			displayedAppState,
 			displayedCompletedTasks,
 			mutateActive,
+			mutateAllActive,
 			mutateAppState,
 			mutateTotalPages,
 			refreshAll,
@@ -1822,6 +1844,7 @@ export function AutofocusApp() {
 				onAddTaskAndStart={handleAddTaskAndStart}
 				onStartTask={handleStartTask}
 				activeTasks={displayedActiveTasks}
+				pamphlets={pamphlets}
 			/>
 
 			<ViewTabs
@@ -1890,6 +1913,7 @@ export function AutofocusApp() {
 						onUpdateTaskTag={handleUpdateCompletedTaskTag}
 						onUpdateTaskNote={handleUpdateCompletedTaskNote}
 						onUpdateTaskText={handleUpdateCompletedTaskText}
+						pamphlets={pamphlets}
 					/>
 				)}
 			</main>

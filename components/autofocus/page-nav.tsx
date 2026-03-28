@@ -404,6 +404,7 @@ export function PageNav({
 												{task.note}
 											</p>
 											<p className="text-[11px] text-muted-foreground">
+												<span className="underline">From the task</span> :{" "}
 												{task.text}
 											</p>
 											<div className="flex items-center gap-2 mt-0.5">
@@ -436,7 +437,7 @@ export function PageNav({
 										</div>
 									);
 								})
-							)}{" "}
+							)}
 						</div>
 					</DialogContent>
 				</Dialog>

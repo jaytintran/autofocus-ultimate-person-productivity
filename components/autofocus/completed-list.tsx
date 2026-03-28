@@ -15,7 +15,7 @@ import { revertTask, updateTask } from "@/lib/store";
 import { formatTimeCompact } from "@/lib/utils/time-utils";
 import { TagFilter } from "./tag-filter";
 import { TagPill } from "./tag-pill";
-import type { Task } from "@/lib/types";
+import type { Pamphlet, Task } from "@/lib/types";
 import type { TagId } from "@/lib/tags";
 import type { CompletedSortKey } from "./view-tabs";
 import type { CompletedViewType } from "./view-tabs";
@@ -44,7 +44,8 @@ interface CompletedListProps {
 	onUpdateTaskTag?: (taskId: string, tag: TagId | null) => Promise<void>;
 	onUpdateTaskNote?: (taskId: string, note: string | null) => Promise<void>;
 	onUpdateTaskText?: (taskId: string, text: string) => Promise<void>;
-	contentFilter?: ContentFilterState; // Add this line
+	contentFilter?: ContentFilterState;
+	pamphlets: Pamphlet[];
 }
 
 function formatCompletionTime(dateString: string): string {
@@ -174,6 +175,7 @@ export function CompletedList({
 	onUpdateTaskTag,
 	onUpdateTaskNote,
 	onUpdateTaskText,
+	pamphlets,
 }: CompletedListProps) {
 	const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(

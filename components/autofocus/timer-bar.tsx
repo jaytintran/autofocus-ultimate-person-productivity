@@ -12,13 +12,14 @@ import {
 	Keyboard,
 	KeyboardIcon,
 } from "lucide-react";
-import type { Task, AppState } from "@/lib/types";
+import type { Task, AppState, Pamphlet } from "@/lib/types";
 import { TAG_DEFINITIONS, getTagDefinition, type TagId } from "@/lib/tags";
 import { formatTimeCompact } from "@/lib/utils/time-utils";
 import {
 	formatDueDate,
 	parseDueDateShortcut,
 } from "@/lib/utils/due-date-parser";
+import { PAMPHLET_COLORS } from "@/lib/pamphlet-colors";
 
 interface TimerBarProps {
 	appState: AppState;
@@ -38,6 +39,7 @@ interface TimerBarProps {
 		tag?: TagId | null,
 		dueDate?: string | null,
 	) => Promise<Task | null>;
+	pamphlets: Pamphlet[];
 }
 
 // Format for active timer display: HH:MM:SS
@@ -63,6 +65,7 @@ export function TimerBar({
 	onAddTaskAndStart,
 	onStartTask,
 	activeTasks,
+	pamphlets,
 }: TimerBarProps) {
 	const TAG_MENTION_MAP: Record<string, TagId> = Object.fromEntries(
 		TAG_DEFINITIONS.map((tag) => [`#${tag.id}`, tag.id]),
@@ -465,15 +468,29 @@ export function TimerBar({
 				? "Session saved"
 				: "Ready to start";
 
+	// Extract pamphlet from pamphlets
+	const workingPamphlet =
+		pamphlets.find((p) => p.id === workingTask.pamphlet_id) ?? null;
+
 	return (
 		<div className="border-y border-border/80 bg-card px-4 py-3 md:px-10 md:py-4">
 			<div className="mx-auto flex max-w-6xl flex-col gap-3">
 				{/* Top row — task text + cancel */}
 				<div className="flex items-start justify-between gap-3">
 					<div className="min-w-0 flex-1 space-y-1 md:space-y-3">
-						<p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground hidden md:block">
-							Working On
-						</p>
+						<div className="flex items-center gap-2">
+							{workingPamphlet && (
+								<span
+									className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-[0.15em] ${PAMPHLET_COLORS[workingPamphlet.color].bg} ${PAMPHLET_COLORS[workingPamphlet.color].text} ${PAMPHLET_COLORS[workingPamphlet.color].border} border`}
+								>
+									{workingPamphlet.name}
+								</span>
+							)}{" "}
+							|
+							<p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground hidden md:block">
+								Working On
+							</p>
+						</div>
 						<p className="truncate text-base font-semibold tracking-tight text-foreground md:text-3xl md:tracking-[0.04em]">
 							{workingTask.text}
 						</p>
