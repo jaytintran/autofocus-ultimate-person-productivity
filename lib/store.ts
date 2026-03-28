@@ -1168,3 +1168,20 @@ export async function getTotalPageCountForPamphlet(
 	if (!data || data.length === 0) return 1;
 	return data[0].page_number;
 }
+
+// Move task to another pamphlet
+export async function moveTaskToPamphlet(
+	taskId: string,
+	toPamphletId: string,
+): Promise<void> {
+	const supabase = createClient();
+	const { error } = await supabase
+		.from("tasks")
+		.update({
+			pamphlet_id: toPamphletId,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", taskId);
+
+	if (error) throw error;
+}

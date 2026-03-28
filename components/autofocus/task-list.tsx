@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { GripVertical, Play, Check, RefreshCw, Trash2 } from "lucide-react";
-import type { Task } from "@/lib/types";
+import type { Pamphlet, Task } from "@/lib/types";
 import { updateTask } from "@/lib/store";
 import {
 	formatTimeCompact,
@@ -44,6 +44,8 @@ import { TagPill } from "./tag-pill";
 import { TagFilter } from "./tag-filter";
 import { updateTaskTag } from "@/lib/store";
 import type { TagId } from "@/lib/tags";
+import { TaskContextMenu } from "./task-context-menu";
+import { useLongPress } from "@/hooks/use-long-press";
 
 function useIsMobile() {
 	const [isMobile, setIsMobile] = useState(false);
@@ -571,6 +573,9 @@ interface TaskListProps {
 	onSinkTask: (taskId: string) => Promise<void>;
 	visibleTotalPages: number;
 	disableSwipeForWorkingTask?: boolean;
+	pamphlets: Pamphlet[];
+	activePamphletId: string | null;
+	onMoveTask: (taskId: string, toPamphletId: string) => void;
 }
 
 const FALLBACK_TASK_ROW_HEIGHT = 48;
@@ -600,6 +605,9 @@ interface TaskRowProps {
 	isFirst: boolean;
 	isLast: boolean;
 	disableSwipe?: boolean;
+	pamphlets: Pamphlet[];
+	activePamphletId: string | null;
+	onMoveTask: (taskId: string, toPamphletId: string) => void;
 }
 
 const DUE_DATE_URGENCY_CLASSES: Record<string, string> = {
@@ -627,6 +635,9 @@ function TaskRow({
 	onSinkTask,
 	isLast,
 	disableSwipe,
+	pamphlets,
+	activePamphletId,
+	onMoveTask,
 }: TaskRowProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editText, setEditText] = useState(task.text);
@@ -635,6 +646,10 @@ function TaskRow({
 	const [modalEditText, setModalEditText] = useState(task.text);
 	const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
 	const [pendingTask, setPendingTask] = useState<Task | null>(null);
+	const [contextMenu, setContextMenu] = useState<{
+		x: number;
+		y: number;
+	} | null>(null);
 
 	const spanRef = useRef<HTMLSpanElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -790,6 +805,24 @@ function TaskRow({
 
 	const shouldDisableSwipe = disableSwipe || isWorking; // safety: also disable if isWorking
 
+	const handleContextMenu = useCallback((e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setContextMenu({ x: e.clientX, y: e.clientY });
+	}, []);
+
+	const {
+		onTouchStart: lpStart,
+		onTouchEnd: lpEnd,
+		onTouchMove: lpMove,
+	} = useLongPress({
+		onLongPress: (e) => {
+			const touch = e.touches[0];
+			setContextMenu({ x: touch.clientX, y: touch.clientY });
+		},
+		delay: 1000,
+	});
+
 	return (
 		<>
 			<li
@@ -797,16 +830,24 @@ function TaskRow({
 				style={style}
 				data-task-id={task.id}
 				className={`
-                group relative flex ${isMobile ? "h-[50px]" : null}
+                group relative flex select-none ${isMobile ? "h-[50px]" : null}
                 ${isWorking ? "bg-[#8b9a6b]/5 ring-1 ring-inset ring-[#8b9a6b]/30" : ""}
                 ${isDragOverlay ? "shadow-lg bg-background border border-border rounded-md" : ""}
                 transition-colors overflow-hidden
             `}
-				onTouchStart={
-					isMobile && !shouldDisableSwipe ? onTouchStart : undefined
-				}
-				onTouchMove={isMobile && !shouldDisableSwipe ? onTouchMove : undefined}
-				onTouchEnd={isMobile && !shouldDisableSwipe ? onTouchEnd : undefined}
+				onContextMenu={handleContextMenu}
+				onTouchStart={(e) => {
+					lpStart(e);
+					if (isMobile && !shouldDisableSwipe) onTouchStart(e);
+				}}
+				onTouchMove={(e) => {
+					lpMove(e);
+					if (isMobile && !shouldDisableSwipe) onTouchMove(e);
+				}}
+				onTouchEnd={(e) => {
+					lpEnd(e);
+					if (isMobile && !shouldDisableSwipe) onTouchEnd(e);
+				}}
 			>
 				{/* Sliding wrapper — this moves left to reveal buttons behind it */}
 				{/* <div
@@ -1172,6 +1213,27 @@ function TaskRow({
 				)}
 			</li>
 
+			{/* Context menu */}
+			{contextMenu && (
+				<TaskContextMenu
+					task={task}
+					position={contextMenu}
+					isFirst={isFirst}
+					isLast={isLast}
+					pamphlets={pamphlets}
+					activePamphletId={activePamphletId}
+					onClose={() => setContextMenu(null)}
+					onStart={onStart}
+					onDone={onDone}
+					onReenter={onReenter}
+					onDelete={onDelete}
+					onPump={onPumpTask}
+					onSink={onSinkTask}
+					onUpdateTag={onUpdateTag}
+					onMoveTask={onMoveTask}
+				/>
+			)}
+
 			{/* Edit modal */}
 			<Dialog open={showModal} onOpenChange={setShowModal}>
 				<DialogContent className="sm:max-w-[500px] top-[20%] sm:top-[50%] translate-y-[-20%] sm:translate-y-[-50%]">
@@ -1267,6 +1329,9 @@ export function TaskList({
 	onSinkTask,
 	visibleTotalPages,
 	disableSwipeForWorkingTask = false,
+	pamphlets,
+	activePamphletId,
+	onMoveTask,
 }: TaskListProps) {
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -1629,6 +1694,9 @@ export function TaskList({
 										disableSwipeForWorkingTask === true &&
 										task.id === workingTaskId
 									}
+									pamphlets={pamphlets}
+									activePamphletId={activePamphletId}
+									onMoveTask={onMoveTask}
 								/>
 							))}
 						</ul>
@@ -1652,6 +1720,9 @@ export function TaskList({
 								onSinkTask={() => {}}
 								isFirst={false}
 								isLast={false}
+								pamphlets={pamphlets}
+								activePamphletId={activePamphletId}
+								onMoveTask={onMoveTask}
 							/>
 						)}
 					</DragOverlay>

@@ -46,6 +46,7 @@ import {
 	updateTaskTag,
 	revertTask,
 } from "@/lib/store";
+import { moveTaskToPamphlet } from "@/lib/store";
 
 import type {
 	Task,
@@ -78,6 +79,7 @@ import {
 	formatTimeCompact,
 	getTaskAge,
 } from "@/lib/utils/time-utils";
+import { invalidatePamphletCache } from "@/lib/pamphlet-cache";
 
 import { usePamphlets } from "@/hooks/use-pamphlets";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -661,6 +663,16 @@ export function AutofocusApp() {
 	// -------------------------------------------------------------------------
 	// Callbacks - Task Actions
 	// -------------------------------------------------------------------------
+	const handleMoveTask = useCallback(
+		async (taskId: string, toPamphletId: string) => {
+			await moveTaskToPamphlet(taskId, toPamphletId);
+			await mutateActive();
+			// Also invalidate destination pamphlet cache
+			invalidatePamphletCache(toPamphletId);
+		},
+		[mutateActive],
+	);
+
 	const handleStartTask = useCallback(
 		async (task: Task) => {
 			if (!displayedAppState) return;
@@ -1896,6 +1908,9 @@ export function AutofocusApp() {
 						onSinkTask={handleSinkTask}
 						visibleTotalPages={getVisibleTotalPages(displayedActiveTasks)}
 						disableSwipeForWorkingTask={true}
+						pamphlets={pamphlets}
+						activePamphletId={activePamphletId}
+						onMoveTask={handleMoveTask}
 					/>
 				) : (
 					<CompletedList
