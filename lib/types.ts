@@ -20,6 +20,7 @@ export interface Task {
 	updated_at: string;
 	due_date: string | null;
 	pamphlet_id: string | null;
+	tracker_id: string | null;
 }
 
 export interface AppState {

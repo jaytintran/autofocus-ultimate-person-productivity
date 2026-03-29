@@ -22,7 +22,9 @@ import {
 	SquareCheckBig,
 	Square,
 	SquareCheck,
+	BookMarked,
 } from "lucide-react";
+import type { TrackerType } from "@/lib/store";
 
 export type CompletedSortKey =
 	| "default"
@@ -96,8 +98,8 @@ function MainViewToggle({
 	activeView,
 	onChange,
 }: {
-	activeView: any;
-	onChange: (view: "tasks" | "completed") => void;
+	activeView: "tasks" | "completed" | "tracker";
+	onChange: (view: "tasks" | "completed" | "tracker") => void;
 }) {
 	return (
 		<div className="inline-flex bg-secondary rounded overflow-hidden w-fit">
@@ -128,6 +130,20 @@ function MainViewToggle({
 			>
 				<span className="max-sm:hidden">Completed</span>
 				<SquareCheck className="w-3.5 h-3.5 sm:hidden" />
+			</Button>
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => onChange("tracker")}
+				className={`h8 rounded text-xs transition-colors ${
+					activeView === "tracker"
+						? "bg-accent! text-foreground"
+						: "text-muted-foreground hover:text-foreground"
+				}`}
+				title="Tracker View"
+			>
+				<span className="max-sm:hidden">Tracker</span>
+				<BookMarked className="w-3.5 h-3.5 sm:hidden" />
 			</Button>
 		</div>
 	);
@@ -166,9 +182,62 @@ function ViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
 	);
 }
 
+const TRACKER_TYPE_FILTER_OPTIONS = [
+	{ value: "all", label: "All" },
+	{ value: "book", label: "📖 Books" },
+	{ value: "course", label: "🎓 Courses" },
+	{ value: "project", label: "🏗️ Projects" },
+	{ value: "mega-project", label: "🚀 Mega Projects" },
+] as const;
+
+function TrackerTypeFilter({
+	value,
+	onChange,
+}: {
+	value: TrackerType | "all";
+	onChange: (v: TrackerType | "all") => void;
+}) {
+	const [open, setOpen] = useState(false);
+
+	const current =
+		TRACKER_TYPE_FILTER_OPTIONS.find((o) => o.value === value) ??
+		TRACKER_TYPE_FILTER_OPTIONS[0];
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<Button variant="outline" size="sm" className="h-8 rounded">
+					<span className="text-sm">{current.label}</span>
+					<ArrowUpDown className="w-3 h-3 opacity-50 -mr-1" />
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent className="w-48 p-2" align="end">
+				<div className="flex flex-col gap-1">
+					{TRACKER_TYPE_FILTER_OPTIONS.map((opt) => (
+						<button
+							key={opt.value}
+							onClick={() => {
+								onChange(opt.value as TrackerType | "all");
+								setOpen(false);
+							}}
+							className={`flex items-center gap-2 px-3 py-2 text-sm rounded transition-colors text-left ${
+								value === opt.value
+									? "bg-[#8b9a6b] text-white"
+									: "hover:bg-accent"
+							}`}
+						>
+							{opt.label}
+						</button>
+					))}
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
 interface ViewTabsProps {
-	activeView: "tasks" | "completed";
-	onViewChange: (view: "tasks" | "completed") => void;
+	activeView: "tasks" | "completed" | "tracker";
+	onViewChange: (view: "tasks" | "completed" | "tracker") => void;
 	selectedTags: Set<TagId | "none">;
 	onToggleTag: (tag: TagId | "none" | "all") => void;
 	onAddTasks: (tasks: string[], tag?: TagId | null) => Promise<void>;
@@ -178,6 +247,8 @@ interface ViewTabsProps {
 	onCompletedViewTypeChange: (view: CompletedViewType) => void;
 	contentFilter: ContentFilterState;
 	onChangeContentFilter: (filter: ContentFilterState) => void;
+	trackerTypeFilter?: TrackerType | "all";
+	onTrackerTypeFilterChange?: (filter: TrackerType | "all") => void;
 }
 
 export function ViewTabs({
@@ -192,6 +263,8 @@ export function ViewTabs({
 	onCompletedViewTypeChange,
 	contentFilter,
 	onChangeContentFilter,
+	trackerTypeFilter,
+	onTrackerTypeFilterChange,
 }: ViewTabsProps) {
 	return (
 		<div className="flex flex-row flex-wrap gap-2 justify-between sm:flex-row sm:items-center sm:justify-between px-4 py-3">
@@ -207,6 +280,12 @@ export function ViewTabs({
 			</div>
 
 			<div className="flex items-center gap-2">
+				{activeView === "tracker" && trackerTypeFilter !== undefined && (
+					<TrackerTypeFilter
+						value={trackerTypeFilter}
+						onChange={onTrackerTypeFilterChange!}
+					/>
+				)}
 				{activeView === "tasks" && (
 					<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
 				)}
@@ -218,12 +297,15 @@ export function ViewTabs({
 						/>
 					</>
 				)}
-
-				<ContentFilterBar
-					value={contentFilter}
-					onChange={onChangeContentFilter}
-				/>
-				<TagFilter selectedTags={selectedTags} onToggleTag={onToggleTag} />
+				{activeView !== "tracker" && (
+					<>
+						<ContentFilterBar
+							value={contentFilter}
+							onChange={onChangeContentFilter}
+						/>
+						<TagFilter selectedTags={selectedTags} onToggleTag={onToggleTag} />
+					</>
+				)}
 			</div>
 		</div>
 	);

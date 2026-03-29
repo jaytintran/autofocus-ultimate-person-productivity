@@ -114,6 +114,7 @@ export async function addTask(
 	tag?: TagId | null,
 	dueDate?: string | null,
 	pamphletId?: string | null,
+	trackerId?: string | null,
 ): Promise<Task> {
 	const supabase = createClient();
 
@@ -154,6 +155,7 @@ export async function addTask(
 			tag: tag ?? null,
 			due_date: dueDate ?? null,
 			pamphlet_id: pamphletId ?? null,
+			tracker_id: trackerId ?? null,
 		})
 		.select()
 		.single();
@@ -1200,4 +1202,148 @@ export async function reorderPamphlets(
 			.eq("id", update.id);
 		if (error) throw error;
 	}
+}
+
+// =============================================================================
+// TRACKER FUNCTIONS
+// =============================================================================
+
+export type TrackerType = "book" | "course" | "project" | "mega-project";
+
+export interface Tracker {
+	id: string;
+	name: string;
+	type: TrackerType;
+	completed: boolean;
+	completed_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export async function getTrackers(): Promise<Tracker[]> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tracker")
+		.select("*")
+		.order("completed", { ascending: true })
+		.order("created_at", { ascending: false });
+
+	if (error) throw error;
+	return data || [];
+}
+
+export async function createTracker(
+	name: string,
+	type: TrackerType,
+): Promise<Tracker> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tracker")
+		.insert({ name, type })
+		.select()
+		.single();
+
+	if (error) throw error;
+	return data;
+}
+
+export async function updateTracker(
+	id: string,
+	updates: Partial<Pick<Tracker, "name" | "type">>,
+): Promise<Tracker> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tracker")
+		.update({ ...updates, updated_at: new Date().toISOString() })
+		.eq("id", id)
+		.select()
+		.single();
+
+	if (error) throw error;
+	return data;
+}
+
+export async function completeTracker(id: string): Promise<Tracker> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tracker")
+		.update({
+			completed: true,
+			completed_at: new Date().toISOString(),
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", id)
+		.select()
+		.single();
+
+	if (error) throw error;
+	return data;
+}
+
+export async function uncompleteTracker(id: string): Promise<Tracker> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tracker")
+		.update({
+			completed: false,
+			completed_at: null,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", id)
+		.select()
+		.single();
+
+	if (error) throw error;
+	return data;
+}
+
+export async function deleteTracker(id: string): Promise<void> {
+	const supabase = createClient();
+	// tasks.tracker_id will be set to null automatically via ON DELETE SET NULL
+	const { error } = await supabase.from("tracker").delete().eq("id", id);
+
+	if (error) throw error;
+}
+
+export async function linkTaskToTracker(
+	taskId: string,
+	trackerId: string | null,
+): Promise<void> {
+	const supabase = createClient();
+	const { error } = await supabase
+		.from("tasks")
+		.update({
+			tracker_id: trackerId,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", taskId);
+
+	if (error) throw error;
+}
+
+export async function getTasksForTracker(trackerId: string): Promise<Task[]> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tasks")
+		.select("*")
+		.eq("tracker_id", trackerId)
+		.order("completed_at", { ascending: false })
+		.order("added_at", { ascending: false });
+
+	if (error) throw error;
+	return data || [];
+}
+
+export async function searchTrackers(query: string): Promise<Tracker[]> {
+	const supabase = createClient();
+	const { data, error } = await supabase
+		.from("tracker")
+		.select("*")
+		.ilike("name", `%${query}%`)
+		.eq("completed", false)
+		.order("created_at", { ascending: false })
+		.limit(8);
+
+	if (error) throw error;
+	return data || [];
 }
