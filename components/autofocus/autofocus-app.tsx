@@ -1732,8 +1732,14 @@ export function AutofocusApp() {
 		async (remaining: AchievementPending[]) => {
 			setAchievementQueue([]);
 			for (const item of remaining) {
-				if (item.type === "done") await commitDoneTask(item.task, "");
-				else await commitCompleteWorkingTask(item.task, item.sessionMs, "");
+				try {
+					if (item.type === "done") await commitDoneTask(item.task, "");
+					else await commitCompleteWorkingTask(item.task, item.sessionMs, "");
+				} catch (error: any) {
+					// Task already completed — skip silently
+					if (error?.code === "PGRST116") continue;
+					throw error;
+				}
 			}
 		},
 		[commitDoneTask, commitCompleteWorkingTask],

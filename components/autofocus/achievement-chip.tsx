@@ -37,6 +37,8 @@ export function AchievementChip({
 	const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const queueRef = useRef(queue);
 	const onDismissAllRef = useRef(onDismissAll);
+	const dragStartXRef = useRef(0);
+	const isDismissingRef = useRef(false);
 
 	// Keep refs in sync so interval callbacks don't stale-close
 	useEffect(() => {
@@ -169,7 +171,27 @@ export function AchievementChip({
 					animate={{ opacity: 1, y: 0 }}
 					exit={{ opacity: 0, y: 8 }}
 					transition={{ type: "spring", stiffness: 420, damping: 30 }}
-					className="absolute top-10 left-1/2 -translate-x-1/2 md:top-auto md:bottom-6 md:left-6 md:translate-x-0 md:translate-y-0 z-10 px-3 pb-2 w-full max-w-md"
+					drag
+					dragConstraints={{ left: -200, right: 200, top: -200, bottom: 200 }}
+					dragElastic={0.3}
+					onDragStart={() => {
+						isDismissingRef.current = false;
+					}}
+					onDrag={(_, info) => {
+						if (Math.abs(info.offset.x) > 80) {
+							isDismissingRef.current = true;
+						}
+					}}
+					onDragEnd={(_, info) => {
+						const ox = Math.abs(info.offset.x);
+						const oy = Math.abs(info.offset.y);
+						const vx = Math.abs(info.velocity.x);
+						const vy = Math.abs(info.velocity.y);
+						if (ox > 80 || oy > 80 || vx > 400 || vy > 400) {
+							handleDismiss();
+						}
+					}}
+					className="absolute top-10 left-1/2 -translate-x-1/2 md:top-auto md:bottom-6 md:left-6 md:translate-x-0 md:translate-y-0 z-10 px-3 pb-2 w-full max-w-md cursor-grab active:cursor-grabbing"
 				>
 					{/* Queue badge */}
 					{count > 1 && (
@@ -247,6 +269,7 @@ export function AchievementChip({
 										value={note}
 										onChange={(e) => setNote(e.target.value)}
 										onKeyDown={handleKeyDown}
+										onPointerDownCapture={(e) => e.stopPropagation()}
 										placeholder="What did you accomplish?"
 										className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
 									/>

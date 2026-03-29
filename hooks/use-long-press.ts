@@ -14,7 +14,6 @@ export function useLongPress({
 
 	const start = useCallback(
 		(e: React.TouchEvent) => {
-			e.preventDefault(); // ADD — blocks native text selection on long press
 			movedRef.current = false;
 			timerRef.current = setTimeout(() => {
 				if (!movedRef.current) onLongPress(e);

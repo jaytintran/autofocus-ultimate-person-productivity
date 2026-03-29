@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import { GripVertical, Play, Check, RefreshCw, Trash2 } from "lucide-react";
+import {
+	GripVertical,
+	Play,
+	Check,
+	RefreshCw,
+	Trash2,
+	ClockAlert,
+	History,
+} from "lucide-react";
 import type { Pamphlet, Task } from "@/lib/types";
 import { updateTask } from "@/lib/store";
 import {
@@ -57,309 +65,6 @@ function useIsMobile() {
 		return () => window.removeEventListener("resize", check);
 	}, []);
 	return isMobile;
-}
-
-/* function useSwipeRevealOldV1(isFirst: boolean, isLast: boolean) {
-	const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(
-		null,
-	);
-	const [dragOffset, setDragOffset] = useState(0);
-	const startXRef = useRef<number | null>(null);
-	const LEFT_TRAY_WIDTH = isFirst ? 96 : 144; // re-enter, pump (if not first), delete
-	const RIGHT_TRAY_WIDTH = isLast ? 96 : 144; // 3 buttons × 48px (start, complete, sink)
-
-	const onTouchStart = useCallback(
-		(e: React.TouchEvent) => {
-			startXRef.current = e.touches[0].clientX;
-			if (swipeDirection === "left") setDragOffset(-LEFT_TRAY_WIDTH);
-			else if (swipeDirection === "right") setDragOffset(RIGHT_TRAY_WIDTH);
-			else setDragOffset(0);
-		},
-		[swipeDirection],
-	);
-
-	const onTouchMove = useCallback(
-		(e: React.TouchEvent) => {
-			if (startXRef.current === null) return;
-			const diff = startXRef.current - e.touches[0].clientX;
-
-			if (swipeDirection === "left") {
-				const base = -LEFT_TRAY_WIDTH;
-				setDragOffset(Math.min(0, Math.max(-LEFT_TRAY_WIDTH, base - diff)));
-			} else if (swipeDirection === "right") {
-				const base = RIGHT_TRAY_WIDTH;
-				setDragOffset(Math.max(0, Math.min(RIGHT_TRAY_WIDTH, base - diff)));
-			} else {
-				// Not yet committed to a direction
-				if (diff > 15) {
-					// Swiping left — clamp to left tray
-					setDragOffset(Math.min(0, Math.max(-LEFT_TRAY_WIDTH, -diff)));
-				} else if (diff < -15) {
-					// Swiping right — clamp to right tray
-					setDragOffset(Math.max(0, Math.min(RIGHT_TRAY_WIDTH, -diff)));
-				}
-			}
-		},
-		[swipeDirection],
-	);
-
-	const onTouchEnd = useCallback((e: React.TouchEvent) => {
-		if (startXRef.current === null) return;
-		const diff = startXRef.current - e.changedTouches[0].clientX;
-
-		if (diff > 60) {
-			setSwipeDirection("left");
-			setDragOffset(-LEFT_TRAY_WIDTH);
-		} else if (diff < -60) {
-			setSwipeDirection("right");
-			setDragOffset(RIGHT_TRAY_WIDTH);
-		} else {
-			setSwipeDirection(null);
-			setDragOffset(0);
-		}
-		startXRef.current = null;
-	}, []);
-
-	const close = useCallback(() => {
-		setSwipeDirection(null);
-		setDragOffset(0);
-	}, []);
-
-	const isDragging = startXRef.current !== null;
-	const swipedLeft = swipeDirection === "left";
-	const swipedRight = swipeDirection === "right";
-
-	return {
-		swipedLeft,
-		swipedRight,
-		dragOffset,
-		isDragging,
-		onTouchStart,
-		onTouchMove,
-		onTouchEnd,
-		close,
-	};
-}
-
-function useSwipeRevealOldV2(isFirst: boolean, isLast: boolean) {
-	const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(
-		null,
-	);
-	const [dragOffset, setDragOffset] = useState(0);
-	const startXRef = useRef<number | null>(null);
-	const startYRef = useRef<number | null>(null); // ← added for directional lock
-
-	const LEFT_TRAY_WIDTH = isFirst ? 96 : 144;
-	const RIGHT_TRAY_WIDTH = isLast ? 96 : 144;
-
-	const onTouchStart = useCallback(
-		(e: React.TouchEvent) => {
-			startXRef.current = e.touches[0].clientX;
-			startYRef.current = e.touches[0].clientY;
-			if (swipeDirection === "left") setDragOffset(-LEFT_TRAY_WIDTH);
-			else if (swipeDirection === "right") setDragOffset(RIGHT_TRAY_WIDTH);
-			else setDragOffset(0);
-		},
-		[swipeDirection],
-	);
-
-	const onTouchMove = useCallback(
-		(e: React.TouchEvent) => {
-			if (startXRef.current === null || startYRef.current === null) return;
-
-			const diffX = startXRef.current - e.touches[0].clientX;
-			const diffY = Math.abs(startYRef.current - e.touches[0].clientY);
-
-			const isMostlyHorizontal = Math.abs(diffX) > diffY + 10;
-
-			if (swipeDirection === "left") {
-				const base = -LEFT_TRAY_WIDTH;
-				setDragOffset(Math.min(0, Math.max(-LEFT_TRAY_WIDTH, base - diffX)));
-			} else if (swipeDirection === "right") {
-				const base = RIGHT_TRAY_WIDTH;
-				setDragOffset(Math.max(0, Math.min(RIGHT_TRAY_WIDTH, base - diffX)));
-			} else if (isMostlyHorizontal) {
-				if (diffX > 15) {
-					setDragOffset(Math.min(0, Math.max(-LEFT_TRAY_WIDTH, -diffX)));
-				} else if (diffX < -15) {
-					setDragOffset(Math.max(0, Math.min(RIGHT_TRAY_WIDTH, -diffX)));
-				}
-			}
-		},
-		[swipeDirection],
-	);
-
-	const onTouchEnd = useCallback((e: React.TouchEvent) => {
-		if (startXRef.current === null || startYRef.current === null) return;
-
-		const diffX = startXRef.current - e.changedTouches[0].clientX;
-		const diffY = Math.abs(startYRef.current - e.changedTouches[0].clientY);
-
-		const isMostlyHorizontal = Math.abs(diffX) > diffY + 20;
-
-		if (isMostlyHorizontal && diffX > 50) {
-			setSwipeDirection("left");
-			setDragOffset(-LEFT_TRAY_WIDTH);
-		} else if (isMostlyHorizontal && diffX < -50) {
-			setSwipeDirection("right");
-			setDragOffset(RIGHT_TRAY_WIDTH);
-		} else {
-			setSwipeDirection(null);
-			setDragOffset(0);
-		}
-
-		startXRef.current = null;
-		startYRef.current = null;
-	}, []);
-
-	const close = useCallback(() => {
-		setSwipeDirection(null);
-		setDragOffset(0);
-	}, []);
-
-	const isDragging = startXRef.current !== null;
-	const swipedLeft = swipeDirection === "left";
-	const swipedRight = swipeDirection === "right";
-
-	return {
-		swipedLeft,
-		swipedRight,
-		dragOffset,
-		isDragging,
-		onTouchStart,
-		onTouchMove,
-		onTouchEnd,
-		close,
-	};
-} */
-
-function useSwipeRevealOldV3(isFirst: boolean, isLast: boolean) {
-	const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(
-		null,
-	);
-	const [dragOffset, setDragOffset] = useState(0);
-
-	const startXRef = useRef<number | null>(null);
-	const startYRef = useRef<number | null>(null);
-	const isEdgeSwipeRef = useRef(false); // ← NEW: tracks if swipe started on edge
-
-	const LEFT_TRAY_WIDTH = isFirst ? 96 : 144;
-	const RIGHT_TRAY_WIDTH = isLast ? 96 : 144;
-
-	// Edge threshold — adjust this (30–50px works well on mobile)
-	const EDGE_THRESHOLD = 180; // px from left or right edge
-
-	const onTouchStart = useCallback(
-		(e: React.TouchEvent) => {
-			const touch = e.touches[0];
-			const rect = e.currentTarget.getBoundingClientRect(); // the <li> element
-
-			const touchXRelative = touch.clientX - rect.left;
-
-			// Only allow swipe if touch started near left OR right edge
-			isEdgeSwipeRef.current =
-				touchXRelative < EDGE_THRESHOLD ||
-				touchXRelative > rect.width - EDGE_THRESHOLD;
-
-			if (!isEdgeSwipeRef.current) {
-				// Not on edge → do nothing (middle is unswipable)
-				startXRef.current = null;
-				startYRef.current = null;
-				return;
-			}
-
-			startXRef.current = touch.clientX;
-			startYRef.current = touch.clientY;
-
-			if (swipeDirection === "left") setDragOffset(-LEFT_TRAY_WIDTH);
-			else if (swipeDirection === "right") setDragOffset(RIGHT_TRAY_WIDTH);
-			else setDragOffset(0);
-		},
-		[swipeDirection],
-	);
-
-	const onTouchMove = useCallback(
-		(e: React.TouchEvent) => {
-			if (
-				!isEdgeSwipeRef.current ||
-				startXRef.current === null ||
-				startYRef.current === null
-			) {
-				return;
-			}
-
-			const diffX = startXRef.current - e.touches[0].clientX;
-			const diffY = Math.abs(startYRef.current - e.touches[0].clientY);
-
-			const isMostlyHorizontal = Math.abs(diffX) > diffY + 10;
-
-			if (swipeDirection === "left") {
-				const base = -LEFT_TRAY_WIDTH;
-				setDragOffset(Math.min(0, Math.max(-LEFT_TRAY_WIDTH, base - diffX)));
-			} else if (swipeDirection === "right") {
-				const base = RIGHT_TRAY_WIDTH;
-				setDragOffset(Math.max(0, Math.min(RIGHT_TRAY_WIDTH, base - diffX)));
-			} else if (isMostlyHorizontal) {
-				if (diffX > 15) {
-					setDragOffset(Math.min(0, Math.max(-LEFT_TRAY_WIDTH, -diffX)));
-				} else if (diffX < -15) {
-					setDragOffset(Math.max(0, Math.min(RIGHT_TRAY_WIDTH, -diffX)));
-				}
-			}
-		},
-		[swipeDirection],
-	);
-
-	const onTouchEnd = useCallback((e: React.TouchEvent) => {
-		if (
-			!isEdgeSwipeRef.current ||
-			startXRef.current === null ||
-			startYRef.current === null
-		) {
-			isEdgeSwipeRef.current = false;
-			return;
-		}
-
-		const diffX = startXRef.current - e.changedTouches[0].clientX;
-		const diffY = Math.abs(startYRef.current - e.changedTouches[0].clientY);
-
-		const isMostlyHorizontal = Math.abs(diffX) > diffY + 20;
-
-		if (isMostlyHorizontal && diffX > 50) {
-			setSwipeDirection("left");
-			setDragOffset(-LEFT_TRAY_WIDTH);
-		} else if (isMostlyHorizontal && diffX < -50) {
-			setSwipeDirection("right");
-			setDragOffset(RIGHT_TRAY_WIDTH);
-		} else {
-			setSwipeDirection(null);
-			setDragOffset(0);
-		}
-
-		startXRef.current = null;
-		startYRef.current = null;
-		isEdgeSwipeRef.current = false;
-	}, []);
-
-	const close = useCallback(() => {
-		setSwipeDirection(null);
-		setDragOffset(0);
-	}, []);
-
-	const isDragging = startXRef.current !== null;
-	const swipedLeft = swipeDirection === "left";
-	const swipedRight = swipeDirection === "right";
-
-	return {
-		swipedLeft,
-		swipedRight,
-		dragOffset,
-		isDragging,
-		onTouchStart,
-		onTouchMove,
-		onTouchEnd,
-		close,
-	};
 }
 
 function useSwipeReveal(isFirst: boolean, isLast: boolean) {
@@ -646,8 +351,6 @@ function TaskRow({
 	const [isEditing, setIsEditing] = useState(false);
 	const [editText, setEditText] = useState(task.text);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-	const [showModal, setShowModal] = useState(false);
-	const [modalEditText, setModalEditText] = useState(task.text);
 	const [showSwitchConfirm, setShowSwitchConfirm] = useState(false);
 	const [pendingTask, setPendingTask] = useState<Task | null>(null);
 	const [contextMenu, setContextMenu] = useState<{
@@ -656,8 +359,7 @@ function TaskRow({
 	} | null>(null);
 	const [dueDatePickerOpen, setDueDatePickerOpen] = useState(false);
 
-	const spanRef = useRef<HTMLSpanElement>(null);
-	const inputRef = useRef<HTMLInputElement>(null);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const reenterButtonRef = useRef<HTMLButtonElement>(null);
 
 	const isMobile = useIsMobile();
@@ -693,7 +395,6 @@ function TaskRow({
 
 	useEffect(() => {
 		setEditText(task.text);
-		setModalEditText(task.text);
 	}, [task.text]);
 
 	useEffect(() => {
@@ -709,40 +410,18 @@ function TaskRow({
 		}
 	}, [showSwitchConfirm]);
 
-	const isTextOverflowing = () => {
-		if (!spanRef.current) return false;
-		return spanRef.current.scrollWidth > spanRef.current.clientWidth;
-	};
+	useEffect(() => {
+		if (isEditing && inputRef.current) {
+			inputRef.current.style.height = "auto";
+			inputRef.current.style.height = inputRef.current.scrollHeight + "px";
+		}
+	}, [isEditing, editText]);
 
 	const handleTextClick = (e: React.MouseEvent) => {
 		if (isWorking) return;
-
 		e.stopPropagation();
-		if (isTextOverflowing()) {
-			setModalEditText(task.text);
-			setShowModal(true);
-		} else {
-			setEditText(task.text);
-			setIsEditing(true);
-		}
-	};
-
-	const handleModalSave = () => {
-		const trimmed = modalEditText.trim();
-		if (!trimmed) {
-			setShowModal(false);
-			return;
-		}
-		const { cleanText, dueDate } = parseDueDateShortcut(trimmed);
-		const finalText = cleanText || trimmed;
-		if (finalText !== task.text || dueDate !== null) {
-			onUpdateText(
-				task.id,
-				finalText,
-				dueDate ? dueDate.toISOString() : undefined,
-			);
-		}
-		setShowModal(false);
+		setEditText(task.text);
+		setIsEditing(true);
 	};
 
 	const handleSave = () => {
@@ -764,8 +443,10 @@ function TaskRow({
 	};
 
 	const handleKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Enter") handleSave();
-		else if (e.key === "Escape") {
+		if (e.key === "Enter" && !e.shiftKey) {
+			e.preventDefault();
+			handleSave();
+		} else if (e.key === "Escape") {
 			setEditText(task.text);
 			setIsEditing(false);
 		}
@@ -836,7 +517,7 @@ function TaskRow({
 				style={style}
 				data-task-id={task.id}
 				className={`
-                group relative flex select-none ${isMobile ? "h-[50px]" : null}
+                group relative flex select-none
                 ${isWorking ? "bg-[#8b9a6b]/5 ring-1 ring-inset ring-[#8b9a6b]/30" : ""}
                 ${isDragOverlay ? "shadow-lg bg-background border border-border rounded-md" : ""}
                 transition-colors overflow-hidden
@@ -908,15 +589,14 @@ function TaskRow({
 					<div className="flex-1 min-w-0 flex items-center gap-2">
 						{isEditing ? (
 							<div className="flex-1 flex items-center gap-2 min-w-0">
-								<input
-									ref={inputRef}
-									type="text"
+								<textarea
+									ref={inputRef as React.RefObject<HTMLTextAreaElement>}
 									value={editText}
 									onChange={(e) => setEditText(e.target.value)}
 									onBlur={handleSave}
 									onKeyDown={handleKeyDown}
 									onClick={(e) => e.stopPropagation()}
-									className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-foreground"
+									className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-foreground resize-none w-full"
 								/>
 								{(() => {
 									const { dueDate } = parseDueDateShortcut(editText);
@@ -929,12 +609,8 @@ function TaskRow({
 							</div>
 						) : (
 							<span
-								ref={spanRef}
 								onClick={handleTextClick}
-								className={`
-                                truncate cursor-text
-                                ${isWorking ? "text-[#ddd4b8]" : ""}
-                            `}
+								className={`wrap-break-word min-w-0 w-full cursor-text ${isWorking ? "text-[#ddd4b8]" : ""}`}
 							>
 								{task.text}
 							</span>
@@ -943,13 +619,14 @@ function TaskRow({
 
 					{/* Right side badges */}
 					<div className="flex items-center gap-1.5 shrink-0">
+						{/* RE-ENTERED BADGE */}
 						{task.re_entered_from && !isEditing && (
 							<span className="text-[10px] px-1.5 py-0.5 rounded border border-[#c49a6b]/40 bg-[#c49a6b]/10 text-[#c49a6b] flex-shrink-0">
 								<RefreshCw className="w-2.5 h-2.5" />
 							</span>
 						)}
-						{/* Due date badge — clickable to open picker, shows dashed outline if empty */}
-						{!isEditing && !isWorking && (
+						{/* DUE DATE BADEGE */}
+						{!isEditing && !isWorking && task.due_date && (
 							<div className="relative flex-shrink-0">
 								<button
 									onClick={(e) => {
@@ -957,20 +634,24 @@ function TaskRow({
 										setDueDatePickerOpen((prev) => !prev);
 									}}
 									className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0
-        ${
-					task.due_date
-						? DUE_DATE_URGENCY_CLASSES[formatDueDate(task.due_date).urgency]
-						: "border-dashed border-muted-foreground/20 text-muted-foreground/30 hover:border-muted-foreground/50 hover:text-muted-foreground/60"
-				}`}
+       									 ${
+														task.due_date
+															? DUE_DATE_URGENCY_CLASSES[
+																	formatDueDate(task.due_date).urgency
+																]
+															: "border-dashed border-muted-foreground/20 text-muted-foreground/30 hover:border-muted-foreground/50 hover:text-muted-foreground/60"
+													}`}
 									title={
 										task.due_date
 											? formatDueDateVerbose(task.due_date)
 											: "Set due date"
 									}
 								>
-									{task.due_date
-										? `⏰ ${formatDueDate(task.due_date).label}`
-										: "⏰"}
+									{task.due_date ? (
+										`${formatDueDate(task.due_date).label}`
+									) : (
+										<ClockAlert className="w-3 h-3" />
+									)}
 								</button>
 
 								{/* Due date picker popup — reuses the same component as TimerBar */}
@@ -986,31 +667,30 @@ function TaskRow({
 								)}
 							</div>
 						)}
+
+						{/* TOTAL TIME LOGGED BADGE */}
 						{task.total_time_ms > 0 && !isEditing && (
 							<span className="text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/30 bg-muted/50 text-muted-foreground flex-shrink-0">
 								{formatTimeCompact(task.total_time_ms)}
 							</span>
 						)}
+
+						{/* TASK AGE BADGE */}
 						{!isEditing && (
-							<span className="text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/20 bg-transparent text-muted-foreground/50 flex-shrink-0">
-								{getTaskAge(task.added_at)}
-							</span>
+							<div className="flex items-center justify-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/20 bg-transparent text-muted-foreground/50 flex-shrink-0">
+								<History className="w-3 h-3" />
+								<span>{getTaskAge(task.added_at)}</span>
+							</div>
 						)}
 
-						{/* {task.tag && !isEditing && (
-							<TagPill
-								tagId={task.tag}
-								onClick={() => !disabled && !isMobile && setShowModal(true)}
-								className=""
-							/>
-						)} */}
+						{/* TAG PILL BADGE */}
 						<TagPill
 							tagId={task.tag}
 							onSelectTag={(tag) => !disabled && onUpdateTag(task.id, tag)}
 							disabled={disabled || isEditing || isWorking}
 						/>
 
-						{/* Desktop action buttons only */}
+						{/* DESKTOP BADGES */}
 						{!isMobile && !isWorking && !isEditing && (
 							<div className="flex items-center gap-1 flex-shrink-0">
 								<button
@@ -1264,41 +944,6 @@ function TaskRow({
 					onMoveTask={onMoveTask}
 				/>
 			)}
-
-			{/* Edit modal */}
-			<Dialog open={showModal} onOpenChange={setShowModal}>
-				<DialogContent className="sm:max-w-[500px] top-[20%] sm:top-[50%] translate-y-[-20%] sm:translate-y-[-50%]">
-					<DialogHeader>
-						<DialogTitle>Edit Task</DialogTitle>
-					</DialogHeader>
-					<div className="space-y-4 pt-4">
-						<textarea
-							value={modalEditText}
-							onChange={(e) => setModalEditText(e.target.value)}
-							className="w-full min-h-[120px] bg-transparent border border-[#8b9a6b] rounded-md p-3 outline-none text-foreground resize-none"
-							autoFocus
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && e.ctrlKey) handleModalSave();
-								else if (e.key === "Escape") setShowModal(false);
-							}}
-						/>
-						<div className="flex justify-end gap-2">
-							<button
-								onClick={() => setShowModal(false)}
-								className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-							>
-								Cancel
-							</button>
-							<button
-								onClick={handleModalSave}
-								className="px-4 py-2 text-sm bg-[#8b9a6b] text-background hover:bg-[#8b9a6b]/90 rounded transition-colors"
-							>
-								Save
-							</button>
-						</div>
-					</div>
-				</DialogContent>
-			</Dialog>
 
 			{/* Switch task dialog */}
 			<Dialog open={showSwitchConfirm} onOpenChange={setShowSwitchConfirm}>
