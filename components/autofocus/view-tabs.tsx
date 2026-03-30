@@ -260,34 +260,57 @@ function TrackerTypeFilter({
 		TRACKER_TYPE_FILTER_OPTIONS[0];
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
-				<Button variant="outline" size="sm" className="h-8 rounded">
-					<span className="text-sm">{current.label}</span>
-					<ArrowUpDown className="w-3 h-3 opacity-50 -mr-1" />
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent className="w-48 p-2" align="end">
-				<div className="flex flex-col gap-1">
-					{TRACKER_TYPE_FILTER_OPTIONS.map((opt) => (
-						<button
-							key={opt.value}
-							onClick={() => {
-								onChange(opt.value as TrackerType | "all");
-								setOpen(false);
-							}}
-							className={`flex items-center gap-2 px-3 py-2 text-sm rounded transition-colors text-left ${
-								value === opt.value
-									? "bg-[#8b9a6b] text-white"
-									: "hover:bg-accent"
-							}`}
-						>
-							{opt.label}
-						</button>
-					))}
-				</div>
-			</PopoverContent>
-		</Popover>
+		<>
+			{/* ── Desktop: inline pill strip ── */}
+			<div className="hidden md:flex items-center gap-1">
+				{TRACKER_TYPE_FILTER_OPTIONS.map((opt) => (
+					<button
+						key={opt.value}
+						type="button"
+						onClick={() => onChange(opt.value as TrackerType | "all")}
+						className={`px-2.5 py-1 text-xs rounded-sm border transition-colors ${
+							value === opt.value
+								? "border-[#8b9a6b]/60 bg-[#8b9a6b]/10 text-foreground"
+								: "border-transparent text-muted-foreground hover:border-border hover:text-foreground"
+						}`}
+					>
+						{opt.label}
+					</button>
+				))}
+			</div>
+
+			{/* ── Mobile: popover ── */}
+			<div className="md:hidden">
+				<Popover open={open} onOpenChange={setOpen}>
+					<PopoverTrigger asChild>
+						<Button variant="outline" size="sm" className="h-8 rounded">
+							<span className="text-sm">{current.label}</span>
+							<ArrowUpDown className="w-3 h-3 opacity-50 -mr-1" />
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent className="w-48 p-2" align="end">
+						<div className="flex flex-col gap-1">
+							{TRACKER_TYPE_FILTER_OPTIONS.map((opt) => (
+								<button
+									key={opt.value}
+									onClick={() => {
+										onChange(opt.value as TrackerType | "all");
+										setOpen(false);
+									}}
+									className={`flex items-center gap-2 px-3 py-2 text-sm rounded transition-colors text-left ${
+										value === opt.value
+											? "bg-[#8b9a6b] text-white"
+											: "hover:bg-accent"
+									}`}
+								>
+									{opt.label}
+								</button>
+							))}
+						</div>
+					</PopoverContent>
+				</Popover>
+			</div>
+		</>
 	);
 }
 
@@ -342,13 +365,13 @@ export function ViewTabs({
 			<div className="flex items-center gap-2">
 				{activeView === "tracker" && trackerTypeFilter !== undefined && (
 					<>
-						<TrackerViewToggle
-							value={trackerViewType}
-							onChange={onTrackerViewTypeChange!}
-						/>
 						<TrackerTypeFilter
 							value={trackerTypeFilter}
 							onChange={onTrackerTypeFilterChange!}
+						/>
+						<TrackerViewToggle
+							value={trackerViewType}
+							onChange={onTrackerViewTypeChange!}
 						/>
 					</>
 				)}

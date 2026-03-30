@@ -604,6 +604,7 @@ function GalleryCard({
 		transform,
 		transition,
 		isDragging,
+		isOver,
 	} = useSortable({ id: tracker.id, disabled: tracker.completed });
 
 	const style = {
@@ -619,30 +620,17 @@ function GalleryCard({
 			{...attributes}
 			{...listeners}
 			onClick={() => onToggleExpand(tracker.id)}
-			className={`relative flex flex-col gap-2 p-3 rounded-xl border border-border bg-card hover:bg-accent/40 transition-colors cursor-pointer ${tracker.completed ? "opacity-60" : ""}`}
+			className={`relative flex flex-col gap-2 p-3 rounded-xl border border-border bg-card hover:bg-accent/40 transition-colors cursor-pointer ${tracker.completed ? "opacity-60" : ""}  ${isOver ? "ring-2 ring-[#8b9a6b]/60 ring-offset-1" : ""}`}
 		>
-			<div className="flex items-start justify-between gap-1">
+			<span className="absolute top-1 right-1 w-6 h-6 bg-accent border border-border rounded-full flex items-center justify-center">
+				<span style={{ fontSize: 12 }}>{TYPE_EMOJI[tracker.type]}</span>
+			</span>
+			<div className="flex items-start gap-2">
 				<p
-					className={`text-sm font-medium leading-snug line-clamp-2 flex items-center gap-1.5 ${tracker.completed ? "line-through text-muted-foreground" : "text-foreground"}`}
+					className={`text-sm max-sm:text-xs font-medium leading-snug line-clamp-2 flex items-center gap-1.5 ${tracker.completed ? "line-through text-muted-foreground" : "text-foreground"}`}
 				>
-					<span className="text-base leading-none flex-shrink-0">
-						{TYPE_EMOJI[tracker.type]}
-					</span>
 					{tracker.name}
 				</p>
-				<button
-					onClick={(e) => {
-						e.stopPropagation();
-						tracker.completed
-							? onUncomplete(tracker.id)
-							: onComplete(tracker.id);
-					}}
-					className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors mt-0.5 ${tracker.completed ? "bg-foreground/20 border-foreground/30" : "border-border hover:border-foreground/40"}`}
-				>
-					{tracker.completed && (
-						<Check className="w-2.5 h-2.5 text-foreground" />
-					)}
-				</button>
 			</div>
 
 			<div className="mt-auto flex flex-wrap gap-1">
@@ -657,29 +645,112 @@ function GalleryCard({
 					</span>
 				)}
 			</div>
-			<div className="flex items-center gap-1">
+			<div className="flex items-center gap-1 justify-between">
 				<button
 					onClick={(e) => {
 						e.stopPropagation();
-						onEdit(tracker);
+						tracker.completed
+							? onUncomplete(tracker.id)
+							: onComplete(tracker.id);
 					}}
-					className="p-1 rounded hover:bg-accent transition-colors"
+					className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors mt-0.5 ${tracker.completed ? "bg-foreground/20 border-foreground/30" : "border-border hover:border-foreground/40"}`}
 				>
-					<Pencil className="w-3 h-3 text-muted-foreground" />
+					{tracker.completed && (
+						<Check className="w-2.5 h-2.5 text-foreground" />
+					)}
 				</button>
-				<button
-					onClick={(e) => {
-						e.stopPropagation();
-						onDelete(tracker.id);
-					}}
-					className="p-1 rounded hover:bg-accent transition-colors"
-				>
-					<Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
-				</button>
+				<div>
+					<button
+						onClick={(e) => {
+							e.stopPropagation();
+							onEdit(tracker);
+						}}
+						className="p-1 rounded hover:bg-accent transition-colors"
+					>
+						<Pencil className="w-3 h-3 text-muted-foreground" />
+					</button>
+					<button
+						onClick={(e) => {
+							e.stopPropagation();
+							onDelete(tracker.id);
+						}}
+						className="p-1 rounded hover:bg-accent transition-colors"
+					>
+						<Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
+					</button>
+				</div>
 			</div>
 		</div>
 	);
 }
+
+// ──── Gallery Group ─────────────────────────────────────────────────────────
+
+const GalleryGroup = React.memo(function GalleryGroup({
+	type,
+	items,
+	trackerTasks,
+	sensors,
+	handleToggleExpand,
+	handleComplete,
+	handleUncomplete,
+	handleReorder,
+	setEditingTracker,
+	handleDelete,
+}: {
+	type: TrackerType;
+	items: Tracker[];
+	trackerTasks: Map<string, Task[]>;
+	sensors: ReturnType<typeof useSensors>;
+	handleToggleExpand: (id: string) => void;
+	handleComplete: (id: string) => void;
+	handleUncomplete: (id: string) => void;
+	handleReorder: (a: string, b: string) => Promise<void>;
+	setEditingTracker: (t: Tracker) => void;
+	handleDelete: (id: string) => void;
+	activeDragId: string | null;
+	setActiveDragId: (id: string | null) => void;
+}) {
+	const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+	return (
+		<DndContext
+			sensors={sensors}
+			collisionDetection={closestCenter}
+			onDragStart={(e) => setActiveDragId(e.active.id as string)}
+			onDragEnd={async (e) => {
+				setActiveDragId(null);
+				const { active, over } = e;
+				if (!over || active.id === over.id) return;
+				await handleReorder(active.id as string, over.id as string);
+			}}
+		>
+			<SortableContext
+				items={items.map((t) => t.id)}
+				strategy={verticalListSortingStrategy}
+			>
+				<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
+					{items.map((tracker, id) => {
+						const tasks = trackerTasks.get(tracker.id) ?? [];
+						const agg = aggregateTasks(tasks);
+						return (
+							<GalleryCard
+								key={tracker.id}
+								tracker={tracker}
+								agg={agg}
+								onToggleExpand={handleToggleExpand}
+								onComplete={handleComplete}
+								onUncomplete={handleUncomplete}
+								onEdit={setEditingTracker}
+								onDelete={handleDelete}
+							/>
+						);
+					})}
+				</div>
+			</SortableContext>
+		</DndContext>
+	);
+});
 
 // ─── Main View ────────────────────────────────────────────────────────────────
 
@@ -717,7 +788,6 @@ export function TrackerView({ typeFilter, viewType }: TrackerViewProps) {
 	);
 
 	const [activeDragId, setActiveDragId] = useState<string | null>(null);
-
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
 		useSensor(TouchSensor, {
@@ -761,7 +831,7 @@ export function TrackerView({ typeFilter, viewType }: TrackerViewProps) {
 							return (
 								<div
 									key={type}
-									className="flex flex-col w-[500px] flex-shrink-0 bg-accent/20 rounded-xl p-2 gap-1"
+									className="flex flex-col w-fit max-w-[450px] flex-shrink-0 bg-accent/20 rounded-xl p-2 gap-1"
 								>
 									<p className="text-[11px] text-muted-foreground/60 uppercase tracking-wide px-2 py-1">
 										{TYPE_LABELS[type]} ({items.length})
@@ -890,62 +960,20 @@ export function TrackerView({ typeFilter, viewType }: TrackerViewProps) {
 													transition={{ duration: 0.18, ease: "easeInOut" }}
 													className="overflow-hidden"
 												>
-													<DndContext
+													<GalleryGroup
+														type={type}
+														items={items}
+														trackerTasks={trackerTasks}
 														sensors={sensors}
-														collisionDetection={closestCenter}
-														onDragStart={(e) =>
-															setActiveDragId(e.active.id as string)
-														}
-														onDragEnd={async (e) => {
-															setActiveDragId(null);
-															const { active, over } = e;
-															if (!over || active.id === over.id) return;
-															await handleReorder(
-																active.id as string,
-																over.id as string,
-															);
-														}}
-													>
-														<SortableContext
-															items={items.map((t) => t.id)}
-															strategy={verticalListSortingStrategy}
-														>
-															<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
-																{items.map((tracker) => {
-																	const tasks =
-																		trackerTasks.get(tracker.id) ?? [];
-																	const agg = aggregateTasks(tasks);
-																	return (
-																		<GalleryCard
-																			key={tracker.id}
-																			tracker={tracker}
-																			agg={agg}
-																			onToggleExpand={handleToggleExpand}
-																			onComplete={handleComplete}
-																			onUncomplete={handleUncomplete}
-																			onEdit={setEditingTracker}
-																			onDelete={handleDelete}
-																		/>
-																	);
-																})}
-															</div>
-														</SortableContext>
-														<DragOverlay>
-															{activeDragId &&
-																(() => {
-																	const t = items.find(
-																		(x) => x.id === activeDragId,
-																	);
-																	if (!t) return null;
-																	return (
-																		<div className="bg-card border border-border rounded-xl p-3 shadow-lg text-sm opacity-90 flex items-center gap-2">
-																			<span>{TYPE_EMOJI[t.type]}</span>
-																			<span>{t.name}</span>
-																		</div>
-																	);
-																})()}
-														</DragOverlay>
-													</DndContext>
+														handleToggleExpand={handleToggleExpand}
+														handleComplete={handleComplete}
+														handleUncomplete={handleUncomplete}
+														handleReorder={handleReorder}
+														setEditingTracker={setEditingTracker}
+														handleDelete={handleDelete}
+														activeDragId={activeDragId}
+														setActiveDragId={setActiveDragId}
+													/>
 												</motion.div>
 											)}
 										</AnimatePresence>
@@ -979,6 +1007,19 @@ export function TrackerView({ typeFilter, viewType }: TrackerViewProps) {
 							)}
 						</div>
 					)}
+					<DragOverlay>
+						{activeDragId &&
+							(() => {
+								const t = trackers.find((x) => x.id === activeDragId);
+								if (!t) return null;
+								return (
+									<div className="bg-card border border-border rounded-xl p-3 shadow-lg text-sm opacity-90 flex items-center gap-2">
+										<span>{TYPE_EMOJI[t.type]}</span>
+										<span>{t.name}</span>
+									</div>
+								);
+							})()}
+					</DragOverlay>
 				</div>
 			)}
 

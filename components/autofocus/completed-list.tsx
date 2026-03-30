@@ -140,11 +140,11 @@ function getTimePeriodColor(
 ): string {
 	switch (period) {
 		case "morning":
-			return "bg-secondary/60 text-secondary-foreground border border-border/40";
+			return "bg-secondary/80 text-secondary-foreground border border-border/40";
 		case "afternoon":
-			return "bg-af4-olive-muted/60 text-foreground border border-border/30";
+			return "bg-af4-olive/20 text-foreground border border-border/30";
 		case "evening":
-			return "bg-accent/50 text-accent-foreground border border-border/20";
+			return "bg-accent/10 text-accent-foreground border border-border/20";
 	}
 }
 
