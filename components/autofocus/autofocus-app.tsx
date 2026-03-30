@@ -27,6 +27,7 @@ import { TrackerView } from "./tracker-view";
 import {
 	addMultipleTasks,
 	addTask,
+	addLoggedActivity,
 	completeTask,
 	deleteTask,
 	getActiveTasks,
@@ -213,8 +214,7 @@ export function AutofocusApp() {
 	const [completedSort, setCompletedSort] =
 		useState<CompletedSortKey>("default");
 	const [completedViewType, setCompletedViewType] =
-		useState<CompletedViewType>("default");
-
+		useState<CompletedViewType>("bullet");
 	// -------------------------------------------------------------------------
 	// State - UI & Optimistic Updates
 	// -------------------------------------------------------------------------
@@ -1829,6 +1829,26 @@ export function AutofocusApp() {
 		[handleUpdateTaskText],
 	);
 
+	const handleAddLoggedActivity = useCallback(
+		async (
+			text: string,
+			tag?: TagId | null,
+			note?: string | null,
+			completedAt?: string | null,
+		) => {
+			const task = await addLoggedActivity(
+				text,
+				tag,
+				note,
+				completedAt,
+				activePamphletId,
+			);
+			await mutateCompleted();
+			return task;
+		},
+		[activePamphletId, mutateCompleted],
+	);
+
 	// -------------------------------------------------------------------------
 	// Callbacks - UI Actions
 	// -------------------------------------------------------------------------
@@ -1981,6 +2001,7 @@ export function AutofocusApp() {
 						onUpdateTaskTag={handleUpdateCompletedTaskTag}
 						onUpdateTaskNote={handleUpdateCompletedTaskNote}
 						onUpdateTaskText={handleUpdateCompletedTaskText}
+						onAddLoggedActivity={handleAddLoggedActivity}
 						pamphlets={pamphlets}
 					/>
 				)}

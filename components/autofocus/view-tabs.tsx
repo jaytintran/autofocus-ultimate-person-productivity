@@ -25,6 +25,7 @@ import {
 	BookMarked,
 	LayoutDashboard,
 	GalleryHorizontalEnd,
+	BookOpen,
 } from "lucide-react";
 import type { TrackerType } from "@/lib/store";
 
@@ -34,7 +35,7 @@ export type CompletedSortKey =
 	| "completed_asc"
 	| "time_spent_desc";
 
-export type CompletedViewType = "default" | "7days";
+export type CompletedViewType = "bullet" | "default" | "7days";
 export type TrackerViewType = "flow" | "board" | "gallery";
 
 const SORT_OPTIONS: {
@@ -207,6 +208,19 @@ function MainViewToggle({
 function ViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
 	return (
 		<div className="inline-flex bg-secondary rounded overflow-hidden">
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => onChange("bullet")}
+				className={`h-8 rounded text-xs transition-colors ${
+					value === "bullet"
+						? "bg-accent! text-foreground"
+						: "text-muted-foreground hover:text-foreground"
+				}`}
+				title="Bullet Journal View"
+			>
+				<BookOpen className="w-3 h-3" />
+			</Button>
 			<Button
 				variant="outline"
 				size="sm"

@@ -595,6 +595,7 @@ function TaskRow({
 									onChange={(e) => setEditText(e.target.value)}
 									onBlur={handleSave}
 									onKeyDown={handleKeyDown}
+									placeholder="Task text… or append !1d, !2h, !30m"
 									onClick={(e) => e.stopPropagation()}
 									className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-foreground resize-none w-full"
 								/>
@@ -626,8 +627,8 @@ function TaskRow({
 							</span>
 						)}
 						{/* DUE DATE BADEGE */}
-						{!isEditing && !isWorking && task.due_date && (
-							<div className="relative flex-shrink-0">
+						{!isEditing && !isWorking && (
+							<div className="relative flex-shrink-0 max-sm:hidden">
 								<button
 									onClick={(e) => {
 										e.stopPropagation();

@@ -1368,3 +1368,39 @@ export async function reorderTrackers(
 		if (error) throw error;
 	}
 }
+
+// =============================================================================
+// LOGGED ACTIVITY FUNCTIONS
+// =============================================================================
+
+export async function addLoggedActivity(
+	text: string,
+	tag?: TagId | null,
+	note?: string | null,
+	completedAt?: string | null, // allows backdating
+	pamphletId?: string | null,
+): Promise<Task> {
+	const supabase = createClient();
+	const now = new Date().toISOString();
+
+	const { data, error } = await supabase
+		.from("tasks")
+		.insert({
+			text,
+			status: "completed",
+			source: "log",
+			completed_at: completedAt ?? now,
+			total_time_ms: 0,
+			page_number: 1,
+			position: 0,
+			tag: tag ?? null,
+			note: note ?? null,
+			pamphlet_id: pamphletId ?? null,
+			tracker_id: null,
+		})
+		.select()
+		.single();
+
+	if (error) throw error;
+	return data;
+}

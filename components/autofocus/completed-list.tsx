@@ -10,7 +10,14 @@ import {
 	Info,
 	Check,
 	MessageSquareMore,
+	Send,
+	Plus,
 } from "lucide-react";
+import {
+	TAG_DEFINITIONS,
+	getTagDefinition,
+	type TagId as TagIdType,
+} from "@/lib/tags";
 import { revertTask, updateTask } from "@/lib/store";
 import { formatTimeCompact } from "@/lib/utils/time-utils";
 import { TagFilter } from "./tag-filter";
@@ -44,8 +51,90 @@ interface CompletedListProps {
 	onUpdateTaskTag?: (taskId: string, tag: TagId | null) => Promise<void>;
 	onUpdateTaskNote?: (taskId: string, note: string | null) => Promise<void>;
 	onUpdateTaskText?: (taskId: string, text: string) => Promise<void>;
+	onAddLoggedActivity?: (
+		text: string,
+		tag?: TagId | null,
+		note?: string | null,
+		completedAt?: string | null,
+	) => Promise<Task>;
 	contentFilter?: ContentFilterState;
 	pamphlets: Pamphlet[];
+}
+
+function parseAtTime(
+	text: string,
+): { isoString: string; display: string } | null {
+	const now = new Date();
+
+	// @now
+	if (/@now(?=\s|$)/i.test(text)) {
+		const display = now.toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		});
+		return { isoString: now.toISOString(), display };
+	}
+
+	// @<N>ago / @<N>m ago / @<N>min ago / @<N>h ago / @<N>hr ago
+	// e.g. @30ago, @30mago, @30minago, @1hago, @1hrago, @90ago (treated as minutes)
+	const agoMatch = text.match(/@(\d+)\s*(h|hr|m|min|mins|)ago(?=\s|$)/i);
+	if (agoMatch) {
+		const amount = parseInt(agoMatch[1], 10);
+		const unit = agoMatch[2].toLowerCase();
+		const ms =
+			unit === "h" || unit === "hr"
+				? amount * 60 * 60 * 1000
+				: amount * 60 * 1000; // default to minutes
+		const result = new Date(now.getTime() - ms);
+		const display = result.toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		});
+		return { isoString: result.toISOString(), display };
+	}
+
+	// @6pm30, @6:30pm, @18:30, @6pm, @6am, @14h30, @6h30
+	const match = text.match(
+		/@(\d{1,2})(?::(\d{2})|h(\d{2})|(?=am|pm))?(?:\s*)?(am|pm)?(?=\s|$)/i,
+	);
+	if (!match) return null;
+
+	let hours = parseInt(match[1], 10);
+	const minutes = parseInt(match[2] ?? match[3] ?? "0", 10);
+	const meridiem = (match[4] ?? "").toLowerCase();
+	const rawToken = match[0].toLowerCase();
+	const hasPm = rawToken.includes("pm") || meridiem === "pm";
+	const hasAm = rawToken.includes("am") || meridiem === "am";
+
+	if (hasPm && hours !== 12) hours += 12;
+	if (hasAm && hours === 12) hours = 0;
+	if (hours > 23 || minutes > 59) return null;
+
+	const result = new Date(
+		now.getFullYear(),
+		now.getMonth(),
+		now.getDate(),
+		hours,
+		minutes,
+		0,
+		0,
+	);
+	const display = result.toLocaleTimeString("en-GB", {
+		hour: "2-digit",
+		minute: "2-digit",
+		hour12: false,
+	});
+	return { isoString: result.toISOString(), display };
+}
+
+function stripAtTime(text: string): string {
+	return text
+		.replace(/@now(?=\s|$)/gi, "")
+		.replace(/@\d+\s*(?:h|hr|m|min|mins)?ago(?=\s|$)/gi, "")
+		.replace(/@\d{1,2}(?::\d{2}|h\d{2})?(?:am|pm)?(?=\s|$)/gi, "")
+		.trim();
 }
 
 function formatCompletionTime(dateString: string): string {
@@ -175,6 +264,7 @@ export function CompletedList({
 	onUpdateTaskTag,
 	onUpdateTaskNote,
 	onUpdateTaskText,
+	onAddLoggedActivity,
 	pamphlets,
 }: CompletedListProps) {
 	const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
@@ -193,6 +283,11 @@ export function CompletedList({
 
 	// Add loading state for tag updates (similar to TaskList's loadingTaskIds)
 	const [loadingTagTaskId, setLoadingTagTaskId] = useState<string | null>(null);
+
+	const [logParsedTime, setLogParsedTime] = useState<{
+		isoString: string;
+		display: string;
+	} | null>(null);
 
 	// Filter tasks by selected tags
 	const filteredTasks = useMemo(() => {
@@ -373,47 +468,6 @@ export function CompletedList({
 		[loadingTagTaskId, onUpdateTaskTag, onRefresh],
 	);
 
-	const handleStartEdit = useCallback(() => {
-		const task = tasks.find((t) => t.id === showTaskModal);
-		if (task) {
-			setEditingNote(task.note || "");
-			setIsEditing(true);
-		}
-	}, [tasks, showTaskModal]);
-
-	const handleCancelEditOld = useCallback(() => {
-		setIsEditing(false);
-		setEditingNote("");
-	}, []);
-
-	const handleSaveNoteOld = useCallback(async () => {
-		if (!showTaskModal || !onUpdateTaskNote) return;
-
-		setIsSaving(true);
-		try {
-			await onUpdateTaskNote(showTaskModal, editingNote.trim() || null);
-			await onRefresh();
-			setIsEditing(false);
-			setEditingNote("");
-		} finally {
-			setIsSaving(false);
-		}
-	}, [showTaskModal, editingNote, onUpdateTaskNote, onRefresh]);
-
-	const handleDeleteNoteOld = useCallback(async () => {
-		if (!showTaskModal || !onUpdateTaskNote) return;
-
-		setIsSaving(true);
-		try {
-			await onUpdateTaskNote(showTaskModal, null);
-			await onRefresh();
-			setIsEditing(false);
-			setEditingNote("");
-		} finally {
-			setIsSaving(false);
-		}
-	}, [showTaskModal, onUpdateTaskNote, onRefresh]);
-
 	const handleStartEditNote = useCallback(() => {
 		const task = tasks.find((t) => t.id === showTaskModal);
 		if (task) {
@@ -481,7 +535,326 @@ export function CompletedList({
 		}
 	}, [showTaskModal, onUpdateTaskNote, onRefresh]);
 
-	if (tasks.length === 0) {
+	// ── Log Activity Bar state ──────────────────────────────────────────────
+	const [logText, setLogText] = useState("");
+	const [logTag, setLogTag] = useState<TagId | null>(null);
+	const [logMentionQuery, setLogMentionQuery] = useState<string | null>(null);
+	const [isSubmittingLog, setIsSubmittingLog] = useState(false);
+	const logInputRef = useRef<HTMLInputElement>(null);
+	const logContainerRef = useRef<HTMLDivElement>(null);
+
+	const handleLogTextChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const value = e.target.value;
+			setLogText(value);
+
+			// Parse @time shortcut
+			setLogParsedTime(parseAtTime(value));
+
+			const mentionMatch = value.match(/#(\w*)$/);
+			setLogMentionQuery(mentionMatch ? mentionMatch[1] : null);
+			for (const tag of TAG_DEFINITIONS) {
+				const regex = new RegExp(`#${tag.id}(\\s|$)`, "i");
+				if (regex.test(value)) {
+					setLogTag(tag.id);
+					return;
+				}
+			}
+			setLogTag(null);
+		},
+		[],
+	);
+
+	const handleLogSelectMention = useCallback((tagId: TagId) => {
+		setLogText((t) => t.replace(/#\w*$/, "").trim());
+		setLogTag(tagId);
+		setLogMentionQuery(null);
+		logInputRef.current?.focus();
+	}, []);
+
+	const handleLogSubmit = useCallback(async () => {
+		const trimmed = logText.trim();
+		if (!trimmed || !onAddLoggedActivity || isSubmittingLog) return;
+
+		let cleanText = trimmed;
+		// Strip inline @time
+		cleanText = stripAtTime(cleanText);
+		// Strip inline # mention
+		for (const tag of TAG_DEFINITIONS) {
+			cleanText = cleanText
+				.replace(new RegExp(`#${tag.id}(\\s|$)`, "gi"), "")
+				.trim();
+		}
+
+		setIsSubmittingLog(true);
+		try {
+			await onAddLoggedActivity(
+				cleanText || trimmed,
+				logTag,
+				null,
+				logParsedTime?.isoString ?? null, // <-- pass parsed time here
+			);
+			setLogText("");
+			setLogTag(null);
+			setLogParsedTime(null);
+			setLogMentionQuery(null);
+		} finally {
+			setIsSubmittingLog(false);
+			logInputRef.current?.focus();
+		}
+	}, [logText, logTag, logParsedTime, onAddLoggedActivity, isSubmittingLog]);
+
+	const handleLogKeyDown = useCallback(
+		(e: React.KeyboardEvent<HTMLInputElement>) => {
+			if (e.key === "Enter" && !e.shiftKey) {
+				e.preventDefault();
+				if (logMentionQuery !== null) {
+					const filtered = TAG_DEFINITIONS.filter((tag) =>
+						tag.id.startsWith(logMentionQuery.toLowerCase()),
+					);
+					if (filtered.length === 1) {
+						handleLogSelectMention(filtered[0].id);
+						return;
+					}
+				}
+				handleLogSubmit();
+			}
+			if (e.key === "Escape") {
+				setLogMentionQuery(null);
+				setLogParsedTime(null);
+			}
+		},
+		[handleLogSubmit, handleLogSelectMention, logMentionQuery],
+	);
+
+	const logTagDef = logTag ? getTagDefinition(logTag) : null;
+
+	// ── Bullet Journal sub-components ──────────────────────────────────────
+
+	function BulletRow({ task }: { task: Task }) {
+		const isLog = task.source === "log";
+		const isLoading = task.id === loadingTaskId;
+
+		// bullet glyph: × for completed tasks, • for logged activities
+		const Bullet = () =>
+			isLog ? (
+				<span className="text-muted-foreground/50 flex-shrink-0 font-mono text-base leading-none mt-0.5">
+					•
+				</span>
+			) : task.note ? (
+				<button
+					type="button"
+					onClick={() => setShowTaskModal(task.id)}
+					className="flex-shrink-0 text-amber-500 hover:text-amber-400 transition-colors leading-none mt-0.5"
+					title={task.note}
+				>
+					<Info className="w-3.5 h-3.5" />
+				</button>
+			) : (
+				<span className="text-[#8b9a6b] flex-shrink-0 font-mono text-sm leading-none mt-0.5">
+					×
+				</span>
+			);
+
+		return (
+			<li className={`group py-1.5 ${isLoading ? "opacity-50" : ""}`}>
+				<div className="flex items-start gap-2.5">
+					<Bullet />
+
+					<div className="flex-1 min-w-0">
+						{/* Title */}
+						<span
+							className={`text-sm leading-snug break-words cursor-pointer transition-colors block ${
+								isLog
+									? "text-foreground hover:text-foreground/80"
+									: "text-muted-foreground line-through hover:text-foreground/70"
+							}`}
+							onClick={() => setShowTaskModal(task.id)}
+						>
+							{task.text}
+						</span>
+
+						{/* Metadata row */}
+						<div className="flex items-center gap-2 mt-0.5 flex-wrap">
+							{task.completed_at && (
+								<span className="text-[11px] text-muted-foreground/60 font-mono">
+									{formatCompletionTime(task.completed_at)}
+								</span>
+							)}
+							{task.total_time_ms > 0 && (
+								<span className="text-[11px] text-[#8b9a6b]">
+									{formatTimeCompact(task.total_time_ms)}
+								</span>
+							)}
+							{task.tag && (
+								<TagPill
+									tagId={task.tag}
+									onSelectTag={(tag) => handleUpdateTag(task.id, tag)}
+									disabled={loadingTagTaskId === task.id || isLoading}
+									className="scale-90 origin-left"
+								/>
+							)}
+						</div>
+
+						{/* Note inline */}
+						{task.note && (
+							<p
+								className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 cursor-pointer hover:text-amber-600 dark:hover:text-amber-300 transition-colors"
+								onClick={() => setShowTaskModal(task.id)}
+							>
+								🏆 {task.note}
+							</p>
+						)}
+					</div>
+
+					{/* Actions — reveal on hover */}
+					<div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5">
+						{!isLog && (
+							<button
+								type="button"
+								onClick={() => handleRevert(task)}
+								disabled={isLoading}
+								className="p-1 hover:bg-accent rounded-sm transition-colors disabled:opacity-50"
+								title="Re-enter task"
+							>
+								<RotateCcw className="w-3 h-3 text-muted-foreground" />
+							</button>
+						)}
+						<button
+							type="button"
+							onClick={() => handleDelete(task.id)}
+							disabled={isLoading}
+							className={`p-1 rounded-sm transition-colors disabled:opacity-50 ${
+								showDeleteConfirm === task.id
+									? "bg-destructive/20"
+									: "hover:bg-accent"
+							}`}
+							title={
+								showDeleteConfirm === task.id
+									? "Click again to confirm"
+									: "Delete"
+							}
+						>
+							<Trash2
+								className={`w-3 h-3 ${
+									showDeleteConfirm === task.id
+										? "text-destructive"
+										: "text-muted-foreground"
+								}`}
+							/>
+						</button>
+					</div>
+				</div>
+			</li>
+		);
+	}
+
+	function BulletJournalView() {
+		return (
+			<div
+				className="flex-1 overflow-y-auto px-5 py-2 !scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent custom-scrollbar"
+				style={{
+					scrollbarWidth: "thin",
+					scrollbarColor: "hsl(var(--border)) transparent",
+				}}
+			>
+				{groupedTasks.length === 0 && (
+					<div className="flex flex-col items-center justify-center text-center py-16">
+						<p className="text-muted-foreground font-medium">No entries yet.</p>
+						<p className="text-muted-foreground text-sm mt-1">
+							Complete tasks or log an activity below.
+						</p>
+					</div>
+				)}
+
+				{groupedTasks.map((group) => (
+					<div key={group.dateKey} className="mb-6">
+						{/* Date header — BuJo style */}
+						<div className="flex items-center gap-3 mb-2">
+							<span className="text-xs font-semibold tracking-widest uppercase text-muted-foreground/70">
+								{group.dateLabel}
+							</span>
+							<div className="flex-1 h-px bg-border/50" />
+						</div>
+
+						{/* Time blocks */}
+						{group.timeBlocks.map((timeBlock) => {
+							const Icon = timeBlock.icon;
+							return (
+								<div key={timeBlock.period} className="mb-3">
+									{/* Period label */}
+									<div className="flex items-center gap-1.5 mb-1">
+										<Icon
+											className={`w-3 h-3 ${getTimePeriodIconColor(timeBlock.period)}`}
+										/>
+										<span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">
+											{timeBlock.period}
+										</span>
+									</div>
+
+									<ul className="space-y-0">
+										{timeBlock.tasks.map((task) => (
+											<BulletRow key={task.id} task={task} />
+										))}
+									</ul>
+								</div>
+							);
+						})}
+					</div>
+				))}
+
+				{/* Load more */}
+				{hasMore && (
+					<div className="flex justify-center py-4">
+						<button
+							type="button"
+							onClick={onLoadMore}
+							disabled={isLoadingMore}
+							className="px-4 py-2 text-sm border border-border rounded-full hover:bg-accent transition-colors disabled:opacity-50 text-muted-foreground"
+						>
+							{isLoadingMore ? "Loading..." : "Load more"}
+						</button>
+					</div>
+				)}
+			</div>
+		);
+	}
+
+	// ── Tag mention dropdown (reused for log bar) ───────────────────────────
+	function LogTagMentionDropdown({
+		query,
+		onSelect,
+	}: {
+		query: string;
+		onSelect: (tagId: TagId) => void;
+	}) {
+		const filtered = TAG_DEFINITIONS.filter((tag) =>
+			tag.id.startsWith(query.toLowerCase()),
+		);
+		if (filtered.length === 0) return null;
+		return (
+			<div className="absolute bottom-full mb-2 left-0 bg-card border border-border rounded-xl shadow-lg p-1.5 z-50 min-w-[160px]">
+				<p className="text-[10px] text-muted-foreground px-2 py-1">Tag as...</p>
+				{filtered.map((tag) => (
+					<button
+						key={tag.id}
+						type="button"
+						onMouseDown={(e) => {
+							e.preventDefault();
+							onSelect(tag.id);
+						}}
+						className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg hover:bg-accent transition-colors text-left"
+					>
+						<span>{tag.emoji}</span>
+						<span>{tag.label}</span>
+					</button>
+				))}
+			</div>
+		);
+	}
+
+	// ── Empty state ─────────────────────────────────────────────────────────
+	if (tasks.length === 0 && completedViewType !== "bullet") {
 		return (
 			<div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-16">
 				<p className="text-muted-foreground font-medium">
@@ -497,10 +870,11 @@ export function CompletedList({
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
 			<div className="flex-1 overflow-y-auto">
-				{completedViewType === "7days" ? (
+				{completedViewType === "bullet" ? (
+					<BulletJournalView />
+				) : completedViewType === "7days" ? (
 					// 7-day column view
 					<div className="h-full overflow-x-auto overflow-y-hidden">
-						{/* Horizontal scroll wrapper (mobile) */}
 						<div className="h-full overflow-x-auto custom-scrollbar">
 							<div className="flex md:grid md:grid-cols-7 divide-x divide-border h-full">
 								{sevenDayColumns.map((col) => (
@@ -508,7 +882,6 @@ export function CompletedList({
 										key={col.key}
 										className="flex flex-col min-w-[180px] sm:min-w-[220px] md:min-w-0 w-full"
 									>
-										{/* Header */}
 										<div className="px-2 py-2 border-b border-border bg-secondary/50 sticky top-0 z-10 text-center">
 											<p className="text-xs font-medium text-foreground">
 												{col.label}
@@ -517,8 +890,6 @@ export function CompletedList({
 												{col.date}
 											</p>
 										</div>
-
-										{/* Vertical scroll per column */}
 										<div
 											className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 space-y-1 custom-scrollbar"
 											style={{
@@ -526,7 +897,6 @@ export function CompletedList({
 												touchAction: "pan-y",
 											}}
 										>
-											{/* Tasks */}
 											<div className="flex-1 overflow-y-auto p-1.5 space-y-1">
 												{col.tasks.length === 0 ? (
 													<p className="text-[10px] text-muted-foreground text-center mt-4 px-1 opacity-50">
@@ -559,7 +929,6 @@ export function CompletedList({
 																		</p>
 																	</div>
 																</div>
-
 																<div className="flex items-center gap-1 flex-wrap">
 																	{task.completed_at && (
 																		<span className="text-muted-foreground opacity-60">
@@ -582,7 +951,6 @@ export function CompletedList({
 																		className="scale-90 origin-left"
 																	/>
 																</div>
-
 																<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
 																	<button
 																		type="button"
@@ -618,14 +986,11 @@ export function CompletedList({
 					<>
 						{groupedTasks.map((group) => (
 							<div key={group.dateKey} className="mb-4">
-								{/* Date header */}
 								<div className="px-4 py-2 bg-secondary/50 border-b border-border sticky top-0 z-10">
 									<span className="text-sm text-muted-foreground font-medium">
 										{group.dateLabel}
 									</span>
 								</div>
-
-								{/* Time blocks within this date */}
 								{group.timeBlocks.map((timeBlock) => {
 									const Icon = timeBlock.icon;
 									return (
@@ -633,25 +998,20 @@ export function CompletedList({
 											key={timeBlock.period}
 											className={`flex gap-3 ${getTimePeriodColor(timeBlock.period)} py-2 px-3`}
 										>
-											{/* Time period icon on the left - vertically centered */}
 											<div className="flex items-center">
 												<Icon
 													className={`w-4 h-4 ${getTimePeriodIconColor(timeBlock.period)}`}
 												/>
 											</div>
-
-											{/* Tasks in this time block */}
 											<div className="flex-1 min-w-0">
 												<ul className="divide-y divide-border/50">
 													{timeBlock.tasks.map((task) => {
 														const isLoading = task.id === loadingTaskId;
-
 														return (
 															<li
 																key={task.id}
 																className={`group py-2.5 flex items-center gap-3 ${isLoading ? "opacity-50" : ""}`}
 															>
-																{/* Checkmark or note chip */}
 																{task.note ? (
 																	<button
 																		type="button"
@@ -666,14 +1026,8 @@ export function CompletedList({
 																		<Check className="w-4 h-4" />
 																	</span>
 																)}
-
-																{/* Task text + note popover */}
 																<div className="flex-1 min-w-0">
 																	<span
-																		ref={(el) => {
-																			if (el && task.id)
-																				textRefs.current[task.id] = el;
-																		}}
 																		className="truncate text-muted-foreground line-through cursor-pointer hover:text-foreground/70 transition-colors block"
 																		onClick={() => setShowTaskModal(task.id)}
 																		title="Click to view full text"
@@ -681,7 +1035,6 @@ export function CompletedList({
 																		{task.text}
 																	</span>
 																</div>
-
 																<TagPill
 																	tagId={task.tag}
 																	onSelectTag={(tag) =>
@@ -692,19 +1045,16 @@ export function CompletedList({
 																	}
 																	className="scale-90 origin-left"
 																/>
-
 																{task.total_time_ms > 0 && (
 																	<span className="text-xs text-[#8b9a6b] flex-shrink-0">
 																		{formatTimeCompact(task.total_time_ms)}
 																	</span>
 																)}
-
 																{task.completed_at && (
 																	<span className="text-xs text-muted-foreground flex-shrink-0">
 																		{formatCompletionTime(task.completed_at)}
 																	</span>
 																)}
-
 																<div className="flex items-center gap-1 flex-shrink-0">
 																	<button
 																		type="button"
@@ -749,8 +1099,6 @@ export function CompletedList({
 								})}
 							</div>
 						))}
-
-						{/* Load More */}
 						{hasMore && (
 							<div className="flex justify-center py-6">
 								<button
@@ -763,7 +1111,6 @@ export function CompletedList({
 								</button>
 							</div>
 						)}
-
 						{!hasMore && tasks.length > 0 && (
 							<div className="flex justify-center py-6">
 								<p className="text-xs text-muted-foreground">
@@ -791,8 +1138,6 @@ export function CompletedList({
 							<DialogHeader>
 								<DialogTitle>Completed Task</DialogTitle>
 							</DialogHeader>
-
-							{/* Title section - editable */}
 							<div className="mt-3">
 								{editMode === "title" ? (
 									<div className="space-y-3">
@@ -855,8 +1200,6 @@ export function CompletedList({
 								)}
 							</div>
 						</div>
-
-						{/* Note section - editable */}
 						<div className="border-t border-border px-6 py-4">
 							{editMode === "note" ? (
 								<div className="space-y-3">
@@ -957,6 +1300,85 @@ export function CompletedList({
 						</div>
 					</DialogContent>
 				</Dialog>
+			)}
+
+			{/* Log Activity Bar — only shown in bullet view */}
+			{completedViewType === "bullet" && onAddLoggedActivity && (
+				<div
+					ref={logContainerRef}
+					className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-2xl px-6 z-10"
+				>
+					<div className="bg-card border border-border rounded-full shadow-lg px-4 py-2.5 flex items-center gap-3 relative">
+						{logMentionQuery !== null && (
+							<div className="absolute bottom-full left-4 mb-2">
+								<LogTagMentionDropdown
+									query={logMentionQuery}
+									onSelect={handleLogSelectMention}
+								/>
+							</div>
+						)}
+
+						{/* Dot bullet indicator */}
+						<span className="text-muted-foreground/50 font-mono text-base flex-shrink-0 select-none">
+							•
+						</span>
+
+						{/* Active tag pill */}
+						{logTagDef && (
+							<button
+								type="button"
+								onClick={() => setLogTag(null)}
+								className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-[#8b9a6b]/10 flex-shrink-0 hover:bg-destructive/10 hover:text-destructive transition-colors group"
+								title="Remove tag"
+							>
+								<span>{logTagDef.emoji}</span>
+								<span>{logTagDef.label}</span>
+								<span className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5">
+									×
+								</span>
+							</button>
+						)}
+
+						{/* Active time pill */}
+						{logParsedTime && (
+							<button
+								type="button"
+								onClick={() => {
+									setLogParsedTime(null);
+									setLogText((t) => stripAtTime(t));
+								}}
+								className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 flex-shrink-0 hover:bg-destructive/10 hover:text-destructive transition-colors group"
+								title="Remove time"
+							>
+								<span>🕐</span>
+								<span>{logParsedTime.display}</span>
+								<span className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5">
+									×
+								</span>
+							</button>
+						)}
+
+						<input
+							ref={logInputRef}
+							type="text"
+							value={logText}
+							onChange={handleLogTextChange}
+							onKeyDown={handleLogKeyDown}
+							placeholder="Log an activity. Use # to tag, @time to set time..."
+							className="flex-1 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm"
+							disabled={isSubmittingLog}
+						/>
+
+						<button
+							onClick={handleLogSubmit}
+							disabled={!logText.trim() || isSubmittingLog}
+							type="button"
+							className="p-1.5 hover:bg-accent rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+						>
+							<Send className="w-4 h-4 text-[#8b9a6b]" />
+						</button>
+					</div>
+				</div>
 			)}
 		</div>
 	);

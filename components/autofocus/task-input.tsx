@@ -164,9 +164,14 @@ export function TaskInput({ onAddTask, selectedTags }: TaskInputProps) {
 	const tagDefinition = resolvedTag ? getTagDefinition(resolvedTag) : null;
 
 	useEffect(() => {
-		inputRef.current?.focus();
+		// Only focus if the input already has a value (i.e. user was mid-typing)
+		// or if nothing else on the page is focused (no accidental steal)
+		const activeEl = document.activeElement;
+		const isNothingFocused = !activeEl || activeEl === document.body;
+		if (isNothingFocused) {
+			inputRef.current?.focus();
+		}
 	}, []);
-
 	// Close template picker when clicking outside
 	useEffect(() => {
 		if (!showTemplates) return;
