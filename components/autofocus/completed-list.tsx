@@ -9,18 +9,17 @@ import {
 	Moon,
 	Info,
 	Check,
-	MessageSquareMore,
 	Send,
-	Plus,
+	Delete,
+	Trash,
+	RefreshCcw,
 } from "lucide-react";
 import {
 	TAG_DEFINITIONS,
 	getTagDefinition,
 	type TagId as TagIdType,
 } from "@/lib/tags";
-import { revertTask, updateTask } from "@/lib/store";
 import { formatTimeCompact } from "@/lib/utils/time-utils";
-import { TagFilter } from "./tag-filter";
 import { TagPill } from "./tag-pill";
 import type { Pamphlet, Task } from "@/lib/types";
 import type { TagId } from "@/lib/tags";
@@ -250,6 +249,165 @@ function getTimePeriodIconColor(
 	}
 }
 
+interface EntryModalProps {
+	task: Task;
+	onSave: (
+		id: string,
+		title: string,
+		note: string,
+		tag: TagId | null,
+	) => Promise<void>;
+	onDelete: (id: string) => Promise<void>;
+	onRevert?: (id: string) => Promise<void>;
+	onClose: () => void;
+}
+
+function EntryModal({
+	task,
+	onSave,
+	onDelete,
+	onRevert,
+	onClose,
+}: EntryModalProps) {
+	const isLog = task.source === "log";
+	const [title, setTitle] = useState(task.text);
+	const [note, setNote] = useState(task.note ?? "");
+	const [tag, setTag] = useState<TagId | null>(task.tag ?? null);
+	const [isSaving, setIsSaving] = useState(false);
+
+	const handleSave = useCallback(async () => {
+		if (isSaving || !title.trim()) return;
+		setIsSaving(true);
+		try {
+			await onSave(task.id, title.trim(), note.trim(), tag);
+			onClose();
+		} finally {
+			setIsSaving(false);
+		}
+	}, [task.id, title, note, tag, isSaving, onSave, onClose]);
+
+	const handleDelete = useCallback(async () => {
+		onClose();
+		await onDelete(task.id);
+	}, [task.id, onDelete, onClose]);
+
+	return (
+		<Dialog open onOpenChange={onClose}>
+			<DialogContent className="sm:max-w-[460px] max-w-[calc(100vw-2rem)] overflow-hidden p-0">
+				{/* Header */}
+				<div className="px-6 pt-5 pb-4">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							{isLog ? (
+								<span className="text-muted-foreground/50 font-mono text-base leading-none">
+									•
+								</span>
+							) : (
+								<span className="text-[#8b9a6b] font-mono text-sm leading-none">
+									×
+								</span>
+							)}
+							<span>{isLog ? "Log Entry" : "Completed Task"}</span>
+						</DialogTitle>
+					</DialogHeader>
+
+					{/* Meta row */}
+					<div className="flex items-center gap-2 mt-3 flex-wrap">
+						{task.completed_at && (
+							<span className="text-[11px] font-mono text-muted-foreground/60 bg-secondary px-2 py-0.5 rounded-md">
+								{formatCompletionTime(task.completed_at)}
+							</span>
+						)}
+						{!isLog && task.total_time_ms > 0 && (
+							<span className="text-[11px] text-[#8b9a6b] bg-[#8b9a6b]/10 px-2 py-0.5 rounded-md">
+								{formatTimeCompact(task.total_time_ms)}
+							</span>
+						)}
+						<TagPill tagId={tag} onSelectTag={setTag} disabled={isSaving} />
+					</div>
+				</div>
+
+				{/* Body */}
+				<div className="px-6 pb-6 space-y-4 border-t border-border/60 pt-4 bg-secondary/20">
+					<div className="space-y-1.5">
+						<label className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+							{isLog ? "Activity" : "Task"}
+						</label>
+						<input
+							type="text"
+							value={title}
+							onChange={(e) => setTitle(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") handleSave();
+							}}
+							className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+							disabled={isSaving}
+							autoFocus
+						/>
+					</div>
+
+					<div className="space-y-1.5">
+						<label className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+							{isLog ? "Note" : "Achievement Note"}
+						</label>
+						<textarea
+							value={note}
+							onChange={(e) => setNote(e.target.value)}
+							placeholder={isLog ? "Add a note..." : "What did you accomplish?"}
+							rows={3}
+							className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-ring resize-none transition-colors"
+							disabled={isSaving}
+						/>
+					</div>
+
+					<div className="flex items-center justify-between pt-1">
+						<div className="flex gap-2">
+							<Button
+								variant="ghost"
+								onClick={handleDelete}
+								disabled={isSaving}
+								className="text-xs text-muted-foreground/50 hover:text-destructive transition-colors disabled:opacity-50"
+							>
+								<Trash className="w-3.5! h-3.5!" />
+							</Button>
+							{!isLog && onRevert && (
+								<Button
+									variant="ghost"
+									onClick={async () => {
+										onClose();
+										await onRevert(task.id);
+									}}
+									disabled={isSaving}
+									className="text-xs text-muted-foreground/50 hover:text-foreground transition-colors disabled:opacity-50"
+								>
+									<RefreshCcw className="w-3.5! h-3.5!" />
+								</Button>
+							)}
+						</div>
+						<div className="flex gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={onClose}
+								disabled={isSaving}
+							>
+								Cancel
+							</Button>
+							<Button
+								size="sm"
+								onClick={handleSave}
+								disabled={isSaving || !title.trim()}
+							>
+								{isSaving ? "Saving..." : "Save"}
+							</Button>
+						</div>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 export function CompletedList({
 	tasks,
 	selectedTags,
@@ -272,14 +430,6 @@ export function CompletedList({
 		null,
 	);
 	const [showTaskModal, setShowTaskModal] = useState<string | null>(null);
-	const [editingNote, setEditingNote] = useState("");
-	const [isEditing, setIsEditing] = useState(false);
-	const [isSaving, setIsSaving] = useState(false);
-
-	const [editingTitle, setEditingTitle] = useState("");
-	const [editMode, setEditMode] = useState<"none" | "title" | "note">("none");
-
-	const textRefs = useRef<{ [key: string]: HTMLSpanElement }>({});
 
 	// Add loading state for tag updates (similar to TaskList's loadingTaskIds)
 	const [loadingTagTaskId, setLoadingTagTaskId] = useState<string | null>(null);
@@ -292,12 +442,9 @@ export function CompletedList({
 	// Filter tasks by selected tags
 	const filteredTasks = useMemo(() => {
 		if (selectedTags.size === 0) return tasks;
-
 		return tasks.filter((task) => {
-			if (selectedTags.has("none")) {
-				return task.tag === null;
-			}
-			return task.tag && selectedTags.has(task.tag);
+			if (selectedTags.has("none") && task.tag === null) return true;
+			return task.tag !== null && selectedTags.has(task.tag);
 		});
 	}, [tasks, selectedTags]);
 
@@ -468,72 +615,8 @@ export function CompletedList({
 		[loadingTagTaskId, onUpdateTaskTag, onRefresh],
 	);
 
-	const handleStartEditNote = useCallback(() => {
-		const task = tasks.find((t) => t.id === showTaskModal);
-		if (task) {
-			setEditingNote(task.note || "");
-			setEditMode("note");
-		}
-	}, [tasks, showTaskModal]);
-
-	const handleStartEditTitle = useCallback(() => {
-		const task = tasks.find((t) => t.id === showTaskModal);
-		if (task) {
-			setEditingTitle(task.text);
-			setEditMode("title");
-		}
-	}, [tasks, showTaskModal]);
-
-	const handleCancelEdit = useCallback(() => {
-		setEditMode("none");
-		setEditingNote("");
-		setEditingTitle("");
-	}, []);
-
-	const handleSaveNote = useCallback(async () => {
-		if (!showTaskModal || !onUpdateTaskNote) return;
-
-		setIsSaving(true);
-		try {
-			await onUpdateTaskNote(showTaskModal, editingNote.trim() || null);
-			await onRefresh();
-			setEditMode("none");
-			setEditingNote("");
-		} finally {
-			setIsSaving(false);
-		}
-	}, [showTaskModal, editingNote, onUpdateTaskNote, onRefresh]);
-
-	const handleSaveTitle = useCallback(async () => {
-		if (!showTaskModal || !onUpdateTaskText) return;
-
-		const trimmed = editingTitle.trim();
-		if (!trimmed) return; // Don't save empty title
-
-		setIsSaving(true);
-		try {
-			await onUpdateTaskText(showTaskModal, trimmed);
-			await onRefresh();
-			setEditMode("none");
-			setEditingTitle("");
-		} finally {
-			setIsSaving(false);
-		}
-	}, [showTaskModal, editingTitle, onUpdateTaskText, onRefresh]);
-
-	const handleDeleteNote = useCallback(async () => {
-		if (!showTaskModal || !onUpdateTaskNote) return;
-
-		setIsSaving(true);
-		try {
-			await onUpdateTaskNote(showTaskModal, null);
-			await onRefresh();
-			setEditMode("none");
-			setEditingNote("");
-		} finally {
-			setIsSaving(false);
-		}
-	}, [showTaskModal, onUpdateTaskNote, onRefresh]);
+	const modalTask = tasks.find((t) => t.id === showTaskModal) ?? null;
+	const isModalLog = modalTask?.source === "log";
 
 	// ── Log Activity Bar state ──────────────────────────────────────────────
 	const [logText, setLogText] = useState("");
@@ -662,18 +745,6 @@ export function CompletedList({
 					<Bullet />
 
 					<div className="flex-1 min-w-0">
-						{/* Title */}
-						<span
-							className={`text-sm leading-snug break-words cursor-pointer transition-colors block ${
-								isLog
-									? "text-foreground hover:text-foreground/80"
-									: "text-muted-foreground line-through hover:text-foreground/70"
-							}`}
-							onClick={() => setShowTaskModal(task.id)}
-						>
-							{task.text}
-						</span>
-
 						{/* Metadata row */}
 						<div className="flex items-center gap-2 mt-0.5 flex-wrap">
 							{task.completed_at && (
@@ -696,53 +767,31 @@ export function CompletedList({
 							)}
 						</div>
 
+						{/* Title */}
+						<span
+							className={`text-sm leading-snug break-words cursor-pointer transition-colors block ${
+								isLog
+									? "text-foreground hover:text-foreground/80"
+									: "text-muted-foreground line-through hover:text-foreground/70"
+							}`}
+							onClick={() => setShowTaskModal(task.id)}
+						>
+							{task.text}
+						</span>
+
 						{/* Note inline */}
 						{task.note && (
 							<p
-								className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 cursor-pointer hover:text-amber-600 dark:hover:text-amber-300 transition-colors"
 								onClick={() => setShowTaskModal(task.id)}
+								className={`text-[12px] mt-0.5 cursor-pointer transition-colors ${
+									isLog
+										? "text-muted-foreground/60 hover:text-muted-foreground"
+										: "text-amber-700 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300"
+								}`}
 							>
-								🏆 {task.note}
+								{isLog ? task.note : `🏆 ${task.note}`}
 							</p>
 						)}
-					</div>
-
-					{/* Actions — reveal on hover */}
-					<div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5">
-						{!isLog && (
-							<button
-								type="button"
-								onClick={() => handleRevert(task)}
-								disabled={isLoading}
-								className="p-1 hover:bg-accent rounded-sm transition-colors disabled:opacity-50"
-								title="Re-enter task"
-							>
-								<RotateCcw className="w-3 h-3 text-muted-foreground" />
-							</button>
-						)}
-						<button
-							type="button"
-							onClick={() => handleDelete(task.id)}
-							disabled={isLoading}
-							className={`p-1 rounded-sm transition-colors disabled:opacity-50 ${
-								showDeleteConfirm === task.id
-									? "bg-destructive/20"
-									: "hover:bg-accent"
-							}`}
-							title={
-								showDeleteConfirm === task.id
-									? "Click again to confirm"
-									: "Delete"
-							}
-						>
-							<Trash2
-								className={`w-3 h-3 ${
-									showDeleteConfirm === task.id
-										? "text-destructive"
-										: "text-muted-foreground"
-								}`}
-							/>
-						</button>
 					</div>
 				</div>
 			</li>
@@ -1010,85 +1059,49 @@ export function CompletedList({
 														return (
 															<li
 																key={task.id}
-																className={`group py-2.5 flex items-center gap-3 ${isLoading ? "opacity-50" : ""}`}
+																className={`flex items-center gap-3 py-2 cursor-pointer ${isLoading ? "opacity-50" : ""}`}
+																onClick={() => setShowTaskModal(task.id)}
 															>
-																{task.note ? (
-																	<button
-																		type="button"
-																		onClick={() => setShowTaskModal(task.id)}
-																		className="flex items-center rounded-full bg-amber-100/80 dark:bg-amber-950/40 hover:bg-amber-200/80 dark:hover:bg-amber-900/60 transition-colors group/trophy"
-																		title={task.note}
-																	>
-																		<Info className="w-4 h-4" />
-																	</button>
+																{task.source === "log" ? (
+																	<span className="text-muted-foreground/50 font-mono text-base leading-none flex-shrink-0">
+																		•
+																	</span>
+																) : task.note ? (
+																	<Info className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
 																) : (
-																	<span className="text-[#8b9a6b] flex-shrink-0">
-																		<Check className="w-4 h-4" />
-																	</span>
+																	<Check className="w-3.5 h-3.5 text-[#8b9a6b] flex-shrink-0" />
 																)}
-																<div className="flex-1 min-w-0">
-																	<span
-																		className="truncate text-muted-foreground line-through cursor-pointer hover:text-foreground/70 transition-colors block"
-																		onClick={() => setShowTaskModal(task.id)}
-																		title="Click to view full text"
-																	>
-																		{task.text}
-																	</span>
-																</div>
-																<TagPill
-																	tagId={task.tag}
-																	onSelectTag={(tag) =>
-																		handleUpdateTag(task.id, tag)
-																	}
-																	disabled={
-																		loadingTagTaskId === task.id || isLoading
-																	}
-																	className="scale-90 origin-left"
-																/>
+																<span
+																	className={`flex-1 min-w-0 truncate text-sm ${
+																		task.source === "log"
+																			? "text-foreground"
+																			: "text-muted-foreground line-through"
+																	}`}
+																>
+																	{task.text}
+																</span>
+																{task.tag && (
+																	<TagPill
+																		tagId={task.tag}
+																		onSelectTag={(tag) =>
+																			handleUpdateTag(task.id, tag)
+																		}
+																		disabled={
+																			loadingTagTaskId === task.id || isLoading
+																		}
+																		className="scale-90 origin-right flex-shrink-0"
+																	/>
+																)}
 																{task.total_time_ms > 0 && (
 																	<span className="text-xs text-[#8b9a6b] flex-shrink-0">
 																		{formatTimeCompact(task.total_time_ms)}
 																	</span>
 																)}
 																{task.completed_at && (
-																	<span className="text-xs text-muted-foreground flex-shrink-0">
+																	<span className="text-xs text-muted-foreground/60 flex-shrink-0 font-mono">
 																		{formatCompletionTime(task.completed_at)}
 																	</span>
 																)}
-																<div className="flex items-center gap-1 flex-shrink-0">
-																	<button
-																		type="button"
-																		onClick={() => handleRevert(task)}
-																		disabled={isLoading}
-																		className="p-1.5 hover:bg-accent rounded-sm transition-colors disabled:opacity-50"
-																		title="Re-enter task"
-																	>
-																		<RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
-																	</button>
-																	<button
-																		type="button"
-																		onClick={() => handleDelete(task.id)}
-																		disabled={isLoading}
-																		className={`p-1.5 rounded-sm transition-colors disabled:opacity-50 ${
-																			showDeleteConfirm === task.id
-																				? "bg-destructive/20 hover:bg-destructive/30"
-																				: "hover:bg-accent"
-																		}`}
-																		title={
-																			showDeleteConfirm === task.id
-																				? "Click again to confirm"
-																				: "Delete task"
-																		}
-																	>
-																		<Trash2
-																			className={`w-3.5 h-3.5 ${
-																				showDeleteConfirm === task.id
-																					? "text-destructive"
-																					: "text-muted-foreground"
-																			}`}
-																		/>
-																	</button>
-																</div>
 															</li>
 														);
 													})}
@@ -1123,185 +1136,29 @@ export function CompletedList({
 			</div>
 
 			{/* Task detail modal */}
-			{showTaskModal && (
-				<Dialog
-					open={!!showTaskModal}
-					onOpenChange={() => {
-						setShowTaskModal(null);
-						setEditMode("none");
-						setEditingNote("");
-						setEditingTitle("");
+			{showTaskModal && modalTask && (
+				<EntryModal
+					task={modalTask}
+					onClose={() => setShowTaskModal(null)}
+					onSave={async (id, title, note, tag) => {
+						await Promise.all([
+							onUpdateTaskText
+								? onUpdateTaskText(id, title)
+								: Promise.resolve(),
+							onUpdateTaskNote
+								? onUpdateTaskNote(id, note || null)
+								: Promise.resolve(),
+							onUpdateTaskTag ? onUpdateTaskTag(id, tag) : Promise.resolve(),
+						]);
+						await onRefresh();
 					}}
-				>
-					<DialogContent className="sm:max-w-[500px] max-w-[calc(100vw-2rem)] overflow-hidden p-0">
-						<div className="px-6 pt-6 pb-1">
-							<DialogHeader>
-								<DialogTitle>Completed Task</DialogTitle>
-							</DialogHeader>
-							<div className="mt-3">
-								{editMode === "title" ? (
-									<div className="space-y-3">
-										<input
-											type="text"
-											value={editingTitle}
-											onChange={(e) => setEditingTitle(e.target.value)}
-											className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-											disabled={isSaving}
-											autoFocus
-										/>
-										<div className="flex gap-2 justify-end">
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={handleCancelEdit}
-												disabled={isSaving}
-											>
-												Cancel
-											</Button>
-											<Button
-												size="sm"
-												onClick={handleSaveTitle}
-												disabled={isSaving || !editingTitle.trim()}
-											>
-												{isSaving ? "Saving..." : "Save"}
-											</Button>
-										</div>
-									</div>
-								) : (
-									<div className="group flex items-start gap-2">
-										<p
-											className="text-sm text-muted-foreground line-through break-words overflow-wrap-anywhere flex-1 cursor-pointer hover:text-foreground/70 transition-colors"
-											onClick={handleStartEditTitle}
-											title="Click to edit"
-										>
-											{tasks.find((t) => t.id === showTaskModal)?.text}
-										</p>
-										<button
-											onClick={handleStartEditTitle}
-											className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-accent rounded"
-											title="Edit title"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												width="14"
-												height="14"
-												viewBox="0 0 24 24"
-												fill="none"
-												stroke="currentColor"
-												strokeWidth="2"
-												strokeLinecap="round"
-												strokeLinejoin="round"
-												className="text-muted-foreground"
-											>
-												<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-											</svg>
-										</button>
-									</div>
-								)}
-							</div>
-						</div>
-						<div className="border-t border-border px-6 py-4">
-							{editMode === "note" ? (
-								<div className="space-y-3">
-									<div className="flex items-start gap-3">
-										<span className="text-base leading-none mt-2 flex-shrink-0">
-											🏆
-										</span>
-										<textarea
-											value={editingNote}
-											onChange={(e) => setEditingNote(e.target.value)}
-											placeholder="Add a note about this achievement..."
-											className="flex-1 min-h-[80px] bg-background border border-input rounded-lg px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-											disabled={isSaving}
-										/>
-									</div>
-									<div className="flex gap-2 justify-end">
-										<Button
-											variant="outline"
-											size="sm"
-											onClick={handleCancelEdit}
-											disabled={isSaving}
-										>
-											Cancel
-										</Button>
-										<Button
-											size="sm"
-											onClick={handleSaveNote}
-											disabled={isSaving}
-										>
-											{isSaving ? "Saving..." : "Save"}
-										</Button>
-									</div>
-								</div>
-							) : (
-								<div className="space-y-3">
-									{tasks.find((t) => t.id === showTaskModal)?.note ? (
-										<div className="group flex items-start gap-3 bg-amber-100/80 dark:bg-amber-950/40 border border-amber-300/50 dark:border-amber-700/40 rounded-lg px-4 py-3">
-											<span className="text-base leading-none mt-0.5 flex-shrink-0">
-												🏆
-											</span>
-											<p
-												className="text-sm text-amber-800 dark:text-amber-300 break-words flex-1 cursor-pointer"
-												onClick={handleStartEditNote}
-												title="Click to edit"
-											>
-												{tasks.find((t) => t.id === showTaskModal)?.note}
-											</p>
-											<button
-												onClick={handleStartEditNote}
-												className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-amber-200/50 dark:hover:bg-amber-900/50 rounded flex-shrink-0"
-												title="Edit note"
-											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													width="14"
-													height="14"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													strokeWidth="2"
-													strokeLinecap="round"
-													strokeLinejoin="round"
-													className="text-amber-700 dark:text-amber-400"
-												>
-													<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-												</svg>
-											</button>
-										</div>
-									) : (
-										<p className="text-sm text-muted-foreground italic">
-											No note added.
-										</p>
-									)}
-									<div className="flex gap-2 justify-end">
-										{tasks.find((t) => t.id === showTaskModal)?.note && (
-											<Button
-												variant="outline"
-												size="sm"
-												onClick={handleDeleteNote}
-												disabled={isSaving || !onUpdateTaskNote}
-												className="text-destructive hover:text-destructive hover:bg-destructive/10"
-											>
-												Delete Note
-											</Button>
-										)}
-										<Button
-											size="sm"
-											onClick={handleStartEditNote}
-											disabled={!onUpdateTaskNote}
-										>
-											{tasks.find((t) => t.id === showTaskModal)?.note
-												? "Edit Note"
-												: "Add Note"}
-										</Button>
-									</div>
-								</div>
-							)}
-						</div>
-					</DialogContent>
-				</Dialog>
+					onDelete={onDeleteTask}
+					onRevert={async (id) => {
+						const task = tasks.find((t) => t.id === id);
+						if (task) await onRevertTask(task);
+					}}
+				/>
 			)}
-
 			{/* Log Activity Bar — only shown in bullet view */}
 			{completedViewType === "bullet" && onAddLoggedActivity && (
 				<div

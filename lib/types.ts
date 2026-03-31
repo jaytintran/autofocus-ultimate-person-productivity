@@ -16,7 +16,7 @@ export interface Task {
 	re_entered_from: string | null;
 	tag: TagId | null;
 	note?: string | null;
-	source: "task" | "log"; // ← add this
+	source?: "task" | "log";
 	created_at: string;
 	updated_at: string;
 	due_date: string | null;

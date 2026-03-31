@@ -172,6 +172,7 @@ export function TaskInput({ onAddTask, selectedTags }: TaskInputProps) {
 			inputRef.current?.focus();
 		}
 	}, []);
+
 	// Close template picker when clicking outside
 	useEffect(() => {
 		if (!showTemplates) return;

@@ -208,6 +208,8 @@ export function AutofocusApp() {
 	// State - Completed Tasks
 	// -------------------------------------------------------------------------
 	const [completedPage, setCompletedPage] = useState(1);
+	const completedPageRef = useRef(1);
+
 	const [allCompletedTasks, setAllCompletedTasks] = useState<Task[]>([]);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
 	const [hasMoreCompleted, setHasMoreCompleted] = useState(true);
@@ -253,10 +255,16 @@ export function AutofocusApp() {
 
 	const mutateCompleted = useCallback(async () => {
 		if (!activePamphletId) return;
-		const data = await fetchCompletedTasks(activePamphletId, 1);
-		setAllCompletedTasks(data);
-		setHasMoreCompleted(data.length === 50);
-		setCompletedPage(1);
+		const pagesToFetch = Array.from(
+			{ length: completedPageRef.current },
+			(_, i) => i + 1,
+		);
+		const results = await Promise.all(
+			pagesToFetch.map((p) => fetchCompletedTasks(activePamphletId, p)),
+		);
+		const merged = results.flat();
+		setAllCompletedTasks(merged);
+		setHasMoreCompleted(results[results.length - 1].length === 50);
 	}, [activePamphletId, fetchCompletedTasks]);
 
 	// Initial load when pamphlet changes
@@ -468,6 +476,7 @@ export function AutofocusApp() {
 		setFilteredCurrentPage(1);
 		setAllCompletedTasks([]);
 		setCompletedPage(1);
+		completedPageRef.current = 1;
 		setHasMoreCompleted(true);
 	}, [activePamphletId]);
 
@@ -486,8 +495,6 @@ export function AutofocusApp() {
 	// Callbacks - Data Refresh
 	// -------------------------------------------------------------------------
 	const refreshAll = useCallback(async () => {
-		setCompletedPage(1);
-		setHasMoreCompleted(true);
 		await Promise.all([
 			mutateActive(),
 			mutateAllActive(),
@@ -1606,21 +1613,16 @@ export function AutofocusApp() {
 		if (isLoadingMore || !hasMoreCompleted || !activePamphletId) return;
 		setIsLoadingMore(true);
 		try {
-			const nextPage = completedPage + 1;
+			const nextPage = completedPageRef.current + 1;
 			const moreTasks = await fetchCompletedTasks(activePamphletId, nextPage);
 			setAllCompletedTasks((prev) => [...prev, ...moreTasks]);
+			completedPageRef.current = nextPage;
 			setCompletedPage(nextPage);
 			setHasMoreCompleted(moreTasks.length === 50);
 		} finally {
 			setIsLoadingMore(false);
 		}
-	}, [
-		isLoadingMore,
-		hasMoreCompleted,
-		completedPage,
-		activePamphletId,
-		fetchCompletedTasks,
-	]);
+	}, [isLoadingMore, hasMoreCompleted, activePamphletId, fetchCompletedTasks]);
 
 	// -------------------------------------------------------------------------
 	// Callbacks - Achievement Toast

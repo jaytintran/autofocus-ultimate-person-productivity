@@ -198,8 +198,8 @@ function MainViewToggle({
 				}`}
 				title="Tracker View"
 			>
-				<span className="max-sm:hidden">Tracker</span>
-				<BookMarked className="w-3.5 h-3.5 sm:hidden" />
+				{/* <span className="max-sm:hidden">Tracker</span> */}
+				<BookMarked className="w-3.5 h-3.5" />
 			</Button>
 		</div>
 	);
