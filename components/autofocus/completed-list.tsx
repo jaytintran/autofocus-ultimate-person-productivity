@@ -13,6 +13,8 @@ import {
 	Delete,
 	Trash,
 	RefreshCcw,
+	CopyCheck,
+	Copy,
 } from "lucide-react";
 import {
 	TAG_DEFINITIONS,
@@ -58,6 +60,7 @@ interface CompletedListProps {
 	) => Promise<Task>;
 	contentFilter?: ContentFilterState;
 	pamphlets: Pamphlet[];
+	activePamphletId?: string | null;
 }
 
 function parseAtTime(
@@ -408,6 +411,48 @@ function EntryModal({
 	);
 }
 
+function generateDayMarkdown(
+	group: GroupedTasks,
+	pamphlets: Pamphlet[],
+	activePamphletId?: string | null,
+): string {
+	const pamphlet = pamphlets.find((p) => p.id === activePamphletId);
+	const pamphletLine = pamphlet ? `**${pamphlet.name}**\n` : "";
+
+	const periodEmoji = {
+		morning: "🌅",
+		afternoon: "☀️",
+		evening: "🌙",
+	};
+
+	const lines: string[] = [`# ${group.dateLabel}`, pamphletLine].filter(
+		Boolean,
+	);
+
+	for (const block of group.timeBlocks) {
+		lines.push(
+			`\n## ${periodEmoji[block.period]} ${block.period.charAt(0).toUpperCase() + block.period.slice(1)}`,
+		);
+
+		for (const task of block.tasks) {
+			const isLog = (task.source ?? "task") === "log";
+			const bullet = isLog ? "-" : "[x]";
+			const time = task.completed_at
+				? formatCompletionTime(task.completed_at)
+				: "";
+			const duration =
+				task.total_time_ms > 0 ? formatTimeCompact(task.total_time_ms) : "";
+			const tag = task.tag ? `#${task.tag}` : "";
+			const note = task.note ? ` — _${task.note}_` : "";
+
+			const meta = [time, duration, tag].filter(Boolean).join("  ");
+			lines.push(`${bullet} ${task.text}${note}${meta ? `  \`${meta}\`` : ""}`);
+		}
+	}
+
+	return lines.join("\n");
+}
+
 export function CompletedList({
 	tasks,
 	selectedTags,
@@ -424,6 +469,7 @@ export function CompletedList({
 	onUpdateTaskText,
 	onAddLoggedActivity,
 	pamphlets,
+	activePamphletId,
 }: CompletedListProps) {
 	const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
@@ -433,6 +479,18 @@ export function CompletedList({
 
 	// Add loading state for tag updates (similar to TaskList's loadingTaskIds)
 	const [loadingTagTaskId, setLoadingTagTaskId] = useState<string | null>(null);
+
+	const [copiedDateKey, setCopiedDateKey] = useState<string | null>(null);
+
+	const handleExportDay = useCallback(
+		async (group: GroupedTasks) => {
+			const md = generateDayMarkdown(group, pamphlets, activePamphletId);
+			await navigator.clipboard.writeText(md);
+			setCopiedDateKey(group.dateKey);
+			setTimeout(() => setCopiedDateKey(null), 2000);
+		},
+		[pamphlets],
+	);
 
 	const [logParsedTime, setLogParsedTime] = useState<{
 		isoString: string;
@@ -824,6 +882,18 @@ export function CompletedList({
 								{group.dateLabel}
 							</span>
 							<div className="flex-1 h-px bg-border/50" />
+							<button
+								type="button"
+								onClick={() => handleExportDay(group)}
+								className="flex items-center gap-1 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+								title="Copy day as markdown"
+							>
+								{copiedDateKey === group.dateKey ? (
+									<CopyCheck className="w-4 h-4 text-[#8b9a6b]" />
+								) : (
+									<Copy className="w-4 h-4" />
+								)}
+							</button>
 						</div>
 
 						{/* Time blocks */}

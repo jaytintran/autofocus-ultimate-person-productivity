@@ -2005,6 +2005,7 @@ export function AutofocusApp() {
 						onUpdateTaskText={handleUpdateCompletedTaskText}
 						onAddLoggedActivity={handleAddLoggedActivity}
 						pamphlets={pamphlets}
+						activePamphletId={activePamphletId}
 					/>
 				)}
 				{activeView === "tracker" && (
