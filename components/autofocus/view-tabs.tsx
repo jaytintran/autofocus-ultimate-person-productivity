@@ -225,8 +225,15 @@ export function ViewTabs({
 
 			<div className="flex items-center gap-2">
 				{activeView === "tasks" && (
-					<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
+					<>
+						<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
+					</>
 				)}
+				<ContentFilterBar
+					value={contentFilter}
+					onChange={onChangeContentFilter}
+				/>
+				<TagFilter selectedTags={selectedTags} onToggleTag={onToggleTag} />
 				{activeView === "completed" && (
 					<>
 						<SortSelector
