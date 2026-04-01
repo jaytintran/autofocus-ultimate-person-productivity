@@ -1,5 +1,9 @@
 // hooks/use-pamphlets.ts
 
+import {
+	getActiveTasksOffline,
+	getCompletedTasksOffline,
+} from "@/lib/store-offline";
 import { useState, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import {
@@ -21,6 +25,8 @@ import {
 } from "@/lib/pamphlet-cache";
 import type { Task, Pamphlet, PamphletColor } from "@/lib/types";
 import { reorderPamphlets } from "@/lib/store";
+import { getPamphletsOffline } from "@/lib/store-offline";
+import { getTotalPageCountOffline } from "@/lib/store-offline";
 
 export function usePamphlets() {
 	// -------------------------------------------------------------------------
@@ -28,9 +34,11 @@ export function usePamphlets() {
 	// -------------------------------------------------------------------------
 	const { data: pamphlets = [], mutate: mutatePamphlets } = useSWR<Pamphlet[]>(
 		"pamphlets",
-		getPamphlets,
+		getPamphletsOffline,
 		{
 			refreshInterval: 0,
+			revalidateOnFocus: false,
+			revalidateOnReconnect: false,
 			onSuccess: (data) => {
 				if (!data.length) return;
 				// On first load, resolve active pamphlet
@@ -69,7 +77,7 @@ export function usePamphlets() {
 		async (pamphletId: string, { background = false } = {}) => {
 			if (!background) setIsLoadingTasks(true);
 			try {
-				const tasks = await getActiveTasksForPamphlet(pamphletId);
+				const tasks = await getActiveTasksOffline(pamphletId);
 				setActiveTasks(tasks);
 				setCachedTasks(pamphletId, tasks);
 			} finally {
@@ -194,7 +202,7 @@ export function usePamphlets() {
 		removePamphlet,
 		reorderPamphletsList,
 		// Raw refetch for completed tasks (pamphlet-scoped, called ad hoc)
-		fetchCompletedTasks: getCompletedTasksForPamphlet,
-		fetchTotalPages: getTotalPageCountForPamphlet,
+		fetchCompletedTasks: getCompletedTasksOffline,
+		fetchTotalPages: getTotalPageCountOffline,
 	};
 }

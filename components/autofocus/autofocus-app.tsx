@@ -30,7 +30,6 @@ import {
 	completeTask,
 	deleteTask,
 	getActiveTasks,
-	getAppState,
 	getCompletedTasks,
 	getTasksForPage,
 	getTasksWithNotes,
@@ -48,6 +47,20 @@ import {
 	revertTask,
 } from "@/lib/store";
 import { moveTaskToPamphlet } from "@/lib/store";
+
+// Offile
+import { initSyncEngine, flushQueue } from "@/lib/sync-engine";
+import { seedLocalCache } from "@/lib/store-offline";
+import { getAppStateOffline } from "@/lib/store-offline";
+import {
+	addTaskOffline,
+	updateTaskOffline,
+	deleteTaskOffline,
+	markTaskDoneOffline,
+	updateAppStateOffline,
+	getAllActiveTasksOffline,
+	getTasksWithNotesOffline,
+} from "@/lib/store-offline";
 
 import type {
 	Task,
@@ -176,6 +189,16 @@ export function AutofocusApp() {
 		reorderPamphletsList,
 	} = usePamphlets();
 
+	useEffect(() => {
+		initSyncEngine();
+	}, []);
+
+	useEffect(() => {
+		if (navigator.onLine && activePamphletId) {
+			seedLocalCache(activePamphletId);
+		}
+	}, [activePamphletId]);
+
 	const [activeView, setActiveView] = useState<"tasks" | "completed">("tasks");
 	const [selectedTags, setSelectedTags] = useState<Set<TagId | "none">>(
 		new Set(),
@@ -258,16 +281,21 @@ export function AutofocusApp() {
 		mutateCompleted();
 	}, [activePamphletId, mutateCompleted]);
 
-	const { data: appState, mutate: mutateAppState } = useSWR<AppState>(
+	const { data: appState, mutate: mutateAppState } = useSWR(
 		"app-state",
-		getAppState,
-		{ refreshInterval: 1000 },
+		getAppStateOffline,
+		{
+			refreshInterval: navigator.onLine ? 1000 : 0,
+			revalidateOnFocus: false,
+			revalidateOnReconnect: false,
+			onError: () => {},
+		},
 	);
-
 	const [totalPages, setTotalPages] = useState(1);
 
 	useEffect(() => {
 		if (!activePamphletId) return;
+		if (!navigator.onLine) return;
 		fetchTotalPages(activePamphletId).then(setTotalPages);
 	}, [activePamphletId, activeTasks, fetchTotalPages]);
 
@@ -279,7 +307,12 @@ export function AutofocusApp() {
 
 	const { data: achievementTasks = [], mutate: mutateAchievements } = useSWR<
 		Task[]
-	>("achievement-tasks", getTasksWithNotes, { refreshInterval: 0 });
+	>("achievement-tasks", getTasksWithNotesOffline, {
+		refreshInterval: 0,
+		revalidateOnFocus: false,
+		revalidateOnReconnect: false,
+		onError: () => {},
+	});
 
 	// -------------------------------------------------------------------------
 	// Derived State
@@ -296,8 +329,13 @@ export function AutofocusApp() {
 
 	const { data: allActiveTasks = [], mutate: mutateAllActive } = useSWR<Task[]>(
 		"all-active-tasks",
-		getActiveTasks,
-		{ refreshInterval: 0 },
+		getAllActiveTasksOffline,
+		{
+			refreshInterval: 0,
+			revalidateOnFocus: false,
+			revalidateOnReconnect: false,
+			onError: () => {},
+		},
 	);
 
 	const workingTask = useMemo(() => {
@@ -411,6 +449,7 @@ export function AutofocusApp() {
 
 			for (const pageNum of pagesToPrefetch) {
 				if (!newPrefetchedTasks.has(pageNum)) {
+					if (!navigator.onLine) continue;
 					try {
 						const tasks = await getTasksForPage(pageNum);
 						newPrefetchedTasks.set(pageNum, tasks);
@@ -565,18 +604,26 @@ export function AutofocusApp() {
 			});
 
 			try {
-				const createdTask = await addTask(
-					trimmedText,
-					1,
-					0,
-					tag ?? null,
-					dueDate ?? null,
-					activePamphletId,
-				);
-				await mutateActive();
-				await mutateTotalPages();
-				setOptimisticState(null);
-				return createdTask;
+				if (navigator.onLine) {
+					const createdTask = await addTask(
+						trimmedText,
+						1,
+						0,
+						tag ?? null,
+						dueDate ?? null,
+						activePamphletId,
+					);
+					await mutateActive();
+					await mutateTotalPages();
+					setOptimisticState(null);
+					return createdTask;
+				} else {
+					await addTaskOffline(optimisticTask as Task);
+					await mutateActive();
+					await mutateTotalPages();
+					setOptimisticState(null);
+					return optimisticTask as Task;
+				}
 			} catch (error) {
 				console.error("Failed to add task:", error);
 				await mutateActive();
@@ -653,7 +700,11 @@ export function AutofocusApp() {
 				totalPages: getVisibleTotalPages(optimisticActiveTasks),
 			});
 
-			addMultipleTasks(tasksToAdd)
+			const doAdd = navigator.onLine
+				? addMultipleTasks(tasksToAdd)
+				: Promise.all(newTasks.map((t) => addTaskOffline(t as Task)));
+
+			doAdd
 				.then(async () => {
 					await mutateActive();
 					await mutateTotalPages();
@@ -718,7 +769,17 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
-					await startTask(task.id);
+					if (navigator.onLine) {
+						await startTask(task.id);
+					} else {
+						await updateTaskOffline(task.id, { status: "in-progress" });
+						await updateAppStateOffline({
+							working_on_task_id: task.id,
+							timer_state: "idle",
+							current_session_ms: 0,
+							session_start_time: null,
+						});
+					}
 				},
 			);
 		},
@@ -750,7 +811,16 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(reorderedState.activeTasks),
 				},
 				async () => {
-					await reorderTasks(reorderedState.updates);
+					if (navigator.onLine) {
+						await reorderTasks(reorderedState.updates);
+					} else {
+						for (const u of reorderedState.updates) {
+							await updateTaskOffline(u.id, {
+								page_number: u.page_number,
+								position: u.position,
+							});
+						}
+					}
 				},
 			);
 		},
@@ -803,7 +873,16 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
-					await reorderTasks(updates);
+					if (navigator.onLine) {
+						await reorderTasks(updates);
+					} else {
+						for (const u of updates) {
+							await updateTaskOffline(u.id, {
+								page_number: u.page_number,
+								position: u.position,
+							});
+						}
+					}
 				},
 			);
 		},
@@ -856,7 +935,16 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
-					await reorderTasks(updates);
+					if (navigator.onLine) {
+						await reorderTasks(updates);
+					} else {
+						for (const u of updates) {
+							await updateTaskOffline(u.id, {
+								page_number: u.page_number,
+								position: u.position,
+							});
+						}
+					}
 				},
 			);
 		},
@@ -942,9 +1030,22 @@ export function AutofocusApp() {
 				},
 				async () => {
 					if (deletingWorkingTask) {
-						await stopWorkingOnTask();
+						if (navigator.onLine) {
+							await stopWorkingOnTask();
+						} else {
+							await updateAppStateOffline({
+								working_on_task_id: null,
+								timer_state: "idle",
+								current_session_ms: 0,
+								session_start_time: null,
+							});
+						}
 					}
-					await deleteTask(taskId, activePamphletId);
+					if (navigator.onLine) {
+						await deleteTask(taskId, activePamphletId);
+					} else {
+						await deleteTaskOffline(taskId);
+					}
 				},
 			);
 		},
@@ -1015,16 +1116,35 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
-					await reenterTask(
-						task.id,
-						task.text,
-						reindexedPlacement.pageNumber,
-						reindexedPlacement.position,
-						task.total_time_ms,
-						task.tag,
-						activePamphletId,
-					);
-					await markTaskDone(task.id, task.total_time_ms, activePamphletId);
+					if (navigator.onLine) {
+						await reenterTask(
+							task.id,
+							task.text,
+							reindexedPlacement.pageNumber,
+							reindexedPlacement.position,
+							task.total_time_ms,
+							task.tag,
+							activePamphletId,
+						);
+						await markTaskDone(task.id, task.total_time_ms, activePamphletId);
+					} else {
+						await markTaskDoneOffline(
+							task.id,
+							task.total_time_ms,
+							activePamphletId,
+						);
+						await addTaskOffline({
+							...task,
+							id: reenteredTaskFinal.id,
+							page_number: reindexedPlacement.pageNumber,
+							position: reindexedPlacement.position,
+							status: "active",
+							re_entered_from: task.id,
+							added_at: now,
+							completed_at: null,
+							updated_at: now,
+						});
+					}
 				},
 			);
 		},
@@ -1067,7 +1187,16 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
-					await revertTask(task.id, activePamphletId);
+					if (navigator.onLine) {
+						await revertTask(task.id, activePamphletId);
+					} else {
+						await updateTaskOffline(task.id, {
+							status: "active",
+							completed_at: null,
+							page_number: revertedTask.page_number,
+							position: revertedTask.position,
+						});
+					}
 				},
 			);
 		},
@@ -1146,7 +1275,14 @@ export function AutofocusApp() {
 					totalPages: displayedTotalPages,
 				},
 				async () => {
-					await pauseTimer(sessionMs);
+					if (navigator.onLine) {
+						await pauseTimer(sessionMs);
+					} else {
+						await updateAppStateOffline({
+							timer_state: "paused",
+							current_session_ms: sessionMs,
+						});
+					}
 				},
 			);
 		},
@@ -1188,7 +1324,18 @@ export function AutofocusApp() {
 					totalPages: displayedTotalPages,
 				},
 				async () => {
-					await stopTimer(task.id, sessionMs);
+					if (navigator.onLine) {
+						await stopTimer(task.id, sessionMs);
+					} else {
+						await updateTaskOffline(task.id, {
+							total_time_ms: task.total_time_ms + sessionMs,
+						});
+						await updateAppStateOffline({
+							timer_state: "stopped",
+							current_session_ms: 0,
+							session_start_time: null,
+						});
+					}
 				},
 			);
 		},
@@ -1259,23 +1406,42 @@ export function AutofocusApp() {
 			});
 
 			try {
-				const createdTask = await addTask(
-					trimmedText,
-					1,
-					0,
-					tag ?? null,
-					dueDate ?? null,
-					activePamphletId,
-				);
-				await startTask(createdTask.id);
-				await Promise.all([
-					mutateActive(),
-					mutateAllActive(),
-					mutateAppState(),
-					mutateTotalPages(),
-				]);
-				setOptimisticState(null);
-				return createdTask;
+				if (navigator.onLine) {
+					const createdTask = await addTask(
+						trimmedText,
+						1,
+						0,
+						tag ?? null,
+						dueDate ?? null,
+						activePamphletId,
+					);
+					await startTask(createdTask.id);
+					await Promise.all([
+						mutateActive(),
+						mutateAllActive(),
+						mutateAppState(),
+						mutateTotalPages(),
+					]);
+					setOptimisticState(null);
+					return createdTask;
+				} else {
+					await addTaskOffline(optimisticTask);
+					await updateTaskOffline(optimisticTask.id, { status: "in-progress" });
+					await updateAppStateOffline({
+						working_on_task_id: optimisticTask.id,
+						timer_state: "idle",
+						current_session_ms: 0,
+						session_start_time: null,
+					});
+					await Promise.all([
+						mutateActive(),
+						mutateAllActive(),
+						mutateAppState(),
+						mutateTotalPages(),
+					]);
+					setOptimisticState(null);
+					return optimisticTask;
+				}
 			} catch (error) {
 				console.error("Failed to add and start task:", error);
 				await refreshAll();
@@ -1341,11 +1507,28 @@ export function AutofocusApp() {
 					totalPages: displayedTotalPages,
 				},
 				async () => {
-					if (shouldPersistSession && sessionMs > 0) {
-						await stopTimer(task.id, sessionMs);
+					if (navigator.onLine) {
+						if (shouldPersistSession && sessionMs > 0) {
+							await stopTimer(task.id, sessionMs);
+						}
+						await updateTask(task.id, { status: "active" as TaskStatus });
+						await stopWorkingOnTask();
+					} else {
+						if (shouldPersistSession && sessionMs > 0) {
+							await updateTaskOffline(task.id, {
+								total_time_ms: task.total_time_ms + sessionMs,
+								status: "active",
+							});
+						} else {
+							await updateTaskOffline(task.id, { status: "active" });
+						}
+						await updateAppStateOffline({
+							working_on_task_id: null,
+							timer_state: "idle",
+							current_session_ms: 0,
+							session_start_time: null,
+						});
 					}
-					await updateTask(task.id, { status: "active" as TaskStatus });
-					await stopWorkingOnTask();
 				},
 			);
 		},
@@ -1424,17 +1607,42 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
-					await reenterTask(
-						task.id,
-						task.text,
-						placement.pageNumber,
-						placement.position,
-						task.total_time_ms,
-						task.tag,
-						activePamphletId,
-					);
-					await markTaskDone(task.id, task.total_time_ms, activePamphletId);
-					await stopWorkingOnTask();
+					if (navigator.onLine) {
+						await reenterTask(
+							task.id,
+							task.text,
+							placement.pageNumber,
+							placement.position,
+							task.total_time_ms,
+							task.tag,
+							activePamphletId,
+						);
+						await markTaskDone(task.id, task.total_time_ms, activePamphletId);
+						await stopWorkingOnTask();
+					} else {
+						await markTaskDoneOffline(
+							task.id,
+							task.total_time_ms,
+							activePamphletId,
+						);
+						await addTaskOffline({
+							...task,
+							id: reenteredTask.id,
+							page_number: placement.pageNumber,
+							position: placement.position,
+							status: "active",
+							re_entered_from: task.id,
+							added_at: now,
+							completed_at: null,
+							updated_at: now,
+						});
+						await updateAppStateOffline({
+							working_on_task_id: null,
+							timer_state: "idle",
+							current_session_ms: 0,
+							session_start_time: null,
+						});
+					}
 				},
 			);
 		},
@@ -1510,8 +1718,23 @@ export function AutofocusApp() {
 						totalPages: getVisibleTotalPages(optimisticActiveTasks),
 					},
 					async () => {
-						await markTaskDone(workingTask.id, totalTime, activePamphletId);
-						await startTask(newTask.id);
+						if (navigator.onLine) {
+							await markTaskDone(workingTask.id, totalTime, activePamphletId);
+							await startTask(newTask.id);
+						} else {
+							await markTaskDoneOffline(
+								workingTask.id,
+								totalTime,
+								activePamphletId,
+							);
+							await updateTaskOffline(newTask.id, { status: "in-progress" });
+							await updateAppStateOffline({
+								working_on_task_id: newTask.id,
+								timer_state: "idle",
+								current_session_ms: 0,
+								session_start_time: null,
+							});
+						}
 					},
 				);
 			} else {
@@ -1567,17 +1790,44 @@ export function AutofocusApp() {
 						totalPages: getVisibleTotalPages(optimisticActiveTasks),
 					},
 					async () => {
-						await reenterTask(
-							workingTask.id,
-							workingTask.text,
-							placement.pageNumber,
-							placement.position,
-							totalTime,
-							workingTask.tag,
-							activePamphletId,
-						);
-						await markTaskDone(workingTask.id, totalTime, activePamphletId);
-						await startTask(newTask.id);
+						if (navigator.onLine) {
+							await reenterTask(
+								workingTask.id,
+								workingTask.text,
+								placement.pageNumber,
+								placement.position,
+								totalTime,
+								workingTask.tag,
+								activePamphletId,
+							);
+							await markTaskDone(workingTask.id, totalTime, activePamphletId);
+							await startTask(newTask.id);
+						} else {
+							await markTaskDoneOffline(
+								workingTask.id,
+								totalTime,
+								activePamphletId,
+							);
+							await addTaskOffline({
+								...workingTask,
+								id: reenteredTask.id,
+								page_number: placement.pageNumber,
+								position: placement.position,
+								status: "active",
+								total_time_ms: totalTime,
+								re_entered_from: workingTask.id,
+								added_at: now,
+								completed_at: null,
+								updated_at: now,
+							});
+							await updateTaskOffline(newTask.id, { status: "in-progress" });
+							await updateAppStateOffline({
+								working_on_task_id: newTask.id,
+								timer_state: "idle",
+								current_session_ms: 0,
+								session_start_time: null,
+							});
+						}
 					},
 				);
 			}
@@ -1650,7 +1900,15 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
-					await markTaskDone(task.id, task.total_time_ms, activePamphletId);
+					if (navigator.onLine) {
+						await markTaskDone(task.id, task.total_time_ms, activePamphletId);
+					} else {
+						await markTaskDoneOffline(
+							task.id,
+							task.total_time_ms,
+							activePamphletId,
+						);
+					}
 				},
 			);
 		},
@@ -1710,11 +1968,21 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
-					if (note.trim()) {
-						await updateTask(task.id, { note: note.trim() });
+					if (navigator.onLine) {
+						if (note.trim()) await updateTask(task.id, { note: note.trim() });
+						await completeTask(task.id, totalTime);
+						await stopWorkingOnTask();
+					} else {
+						if (note.trim())
+							await updateTaskOffline(task.id, { note: note.trim() });
+						await markTaskDoneOffline(task.id, totalTime, activePamphletId);
+						await updateAppStateOffline({
+							working_on_task_id: null,
+							timer_state: "idle",
+							current_session_ms: 0,
+							session_start_time: null,
+						});
 					}
-					await completeTask(task.id, totalTime);
-					await stopWorkingOnTask();
 				},
 			);
 		},
