@@ -1325,22 +1325,12 @@ function BookSidebar({
 										</div>
 									)}
 								</div>
-								<div className="border-t border-border/50 p-2 flex flex-col gap-1">
-									<button
-										onClick={() => setAddingDomain(true)}
-										className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-muted-foreground/60 hover:text-foreground hover:bg-accent transition-colors"
-									>
-										<Plus className="w-3.5 h-3.5" />
-										<span>New domain</span>
-									</button>
-									<button
-										onClick={onAddBook}
-										className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium bg-[#8b9a6b]/10 hover:bg-[#8b9a6b]/20 text-[#8b9a6b] transition-colors"
-									>
-										<Plus className="w-3.5 h-3.5" />
-										<span>Add Book</span>
-									</button>
-								</div>
+								<button
+									onClick={onAddBook}
+									className="w-full flex items-center gap-2 px-2 py-3 justify-center rounded-lg text-xs font-medium bg-[#8b9a6b]/10 hover:bg-[#8b9a6b]/20 text-[#8b9a6b] transition-colors"
+								>
+									<Plus className="w-3.5 h-3.5" /> Add Book
+								</button>
 							</div>
 						</div>
 					</div>
