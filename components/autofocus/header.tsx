@@ -1,6 +1,15 @@
 "use client";
 
-import { Moon, Sun, Settings, Type, Palette, TreePine } from "lucide-react";
+import {
+	Moon,
+	Sun,
+	Settings,
+	Type,
+	Palette,
+	TreePine,
+	BookOpen,
+	X,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { AboutSection } from "./about-section";
@@ -11,6 +20,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
+import { BookView } from "./book-view";
 
 const THEMES = [
 	{ value: "light", label: "Light", icon: Sun },
@@ -22,7 +32,10 @@ const THEMES = [
 export function Header() {
 	const { theme, setTheme, themes } = useTheme();
 	const [fontFamily, setFontFamily] = useState<"default" | "rubik">("default");
+
 	const [showSettings, setShowSettings] = useState(false);
+	const [showBooks, setShowBooks] = useState(false);
+
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
@@ -80,7 +93,7 @@ export function Header() {
 	}, []);
 
 	return (
-		<header className="flex items-center justify-between px-6 py-4">
+		<header className="flex items-center justify-between px-6 py-4 relative">
 			<div>
 				<h1 className="text-sm tracking-[0.3em] font-medium">
 					AUT<span className="text-af4-olive">O</span>FOCUS
@@ -90,6 +103,15 @@ export function Header() {
 				</p>
 			</div>
 			<div className="flex items-center gap-2">
+				<button
+					onClick={() => setShowBooks(true)}
+					className="p-2 hover:bg-accent rounded transition-colors"
+					aria-label="Books"
+					title="Library"
+				>
+					<BookOpen className="w-4 h-4" />
+				</button>
+
 				<AboutSection />
 				<button
 					onClick={() => setShowSettings(true)}
@@ -156,6 +178,35 @@ export function Header() {
 				isOpen={showSettings}
 				onClose={() => setShowSettings(false)}
 			/>
+
+			{/* Books overlay */}
+			{showBooks && (
+				<div className="fixed inset-0 z-50 bg-background flex flex-col">
+					{/* Books header */}
+					<div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+						<div>
+							<h2 className="text-sm tracking-[0.3em] font-medium">
+								LIB<span className="text-af4-olive">R</span>ARY
+							</h2>
+							<p className="text-[0.625rem] uppercase text-muted-foreground mt-0.5">
+								Your reading stack
+							</p>
+						</div>
+						<button
+							onClick={() => setShowBooks(false)}
+							className="p-2 hover:bg-accent rounded transition-colors"
+							aria-label="Close library"
+						>
+							<X className="w-4 h-4" />
+						</button>
+					</div>
+
+					{/* Books content */}
+					<div className="flex-1 min-h-0">
+						<BookView />
+					</div>
+				</div>
+			)}
 		</header>
 	);
 }
