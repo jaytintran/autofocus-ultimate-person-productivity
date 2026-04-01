@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
 	Search,
 	Plus,
@@ -407,21 +407,47 @@ function BookModal({
 function AddBookModal({
 	onClose,
 	onAdd,
+	domains,
+	books,
 }: {
 	onClose: () => void;
 	onAdd: (
 		book: Omit<Book, "id" | "created_at" | "updated_at">,
 	) => Promise<void>;
+	domains: string[];
+	books: Book[];
 }) {
 	const [title, setTitle] = useState("");
 	const [author, setAuthor] = useState("");
 	const [domain, setDomain] = useState("");
+
 	const [layer, setLayer] = useState("");
 	const [priority, setPriority] = useState<Book["priority"]>("MEDIUM");
+
 	const [bookType, setBookType] = useState<Book["book_type"]>("Core");
 	const [totalPages, setTotalPages] = useState("");
+
 	const [rating, setRating] = useState("");
 	const [saving, setSaving] = useState(false);
+
+	const [showNewDomain, setShowNewDomain] = useState(false);
+	const [showNewLayer, setShowNewLayer] = useState(false);
+
+	const existingLayers = useMemo(() => {
+		if (!domain || showNewDomain) return [];
+		return Array.from(
+			new Set(
+				books
+					.filter((b) => b.domain === domain && b.layer)
+					.map((b) => b.layer as string),
+			),
+		);
+	}, [books, domain, showNewDomain]);
+
+	useEffect(() => {
+		setLayer("");
+		setShowNewLayer(false);
+	}, [domain]);
 
 	const handleSubmit = async () => {
 		if (!title.trim() || !author.trim() || !domain.trim()) return;
@@ -493,23 +519,96 @@ function AddBookModal({
 							<label className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
 								Domain *
 							</label>
-							<input
-								value={domain}
-								onChange={(e) => setDomain(e.target.value)}
-								placeholder="e.g. Mental Sovereignty"
-								className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-							/>
+							{showNewDomain ? (
+								<div className="flex gap-2">
+									<input
+										autoFocus
+										value={domain}
+										onChange={(e) => setDomain(e.target.value)}
+										placeholder="New domain name"
+										className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+									/>
+									<button
+										type="button"
+										onClick={() => {
+											setShowNewDomain(false);
+											setDomain("");
+										}}
+										className="text-xs text-muted-foreground hover:text-foreground"
+									>
+										Cancel
+									</button>
+								</div>
+							) : (
+								<select
+									value={domain}
+									onChange={(e) => {
+										if (e.target.value === "__new__") {
+											setShowNewDomain(true);
+											setDomain("");
+										} else {
+											setDomain(e.target.value);
+										}
+									}}
+									className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+								>
+									<option value="">Select a domain...</option>
+									{domains.map((d) => (
+										<option key={d} value={d}>
+											{d}
+										</option>
+									))}
+									<option value="__new__">+ Create new domain</option>
+								</select>
+							)}
 						</div>
 						<div className="space-y-1.5">
 							<label className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
 								Layer
 							</label>
-							<input
-								value={layer}
-								onChange={(e) => setLayer(e.target.value)}
-								placeholder="e.g. Layer 1 — Foundation"
-								className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-							/>
+							{showNewLayer ? (
+								<div className="flex gap-2">
+									<input
+										autoFocus
+										value={layer}
+										onChange={(e) => setLayer(e.target.value)}
+										placeholder="New layer name"
+										className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+									/>
+									<button
+										type="button"
+										onClick={() => {
+											setShowNewLayer(false);
+											setLayer("");
+										}}
+										className="text-xs text-muted-foreground hover:text-foreground"
+									>
+										Cancel
+									</button>
+								</div>
+							) : (
+								<select
+									value={layer}
+									disabled={!domain || showNewDomain}
+									onChange={(e) => {
+										if (e.target.value === "__new__") {
+											setShowNewLayer(true);
+											setLayer("");
+										} else {
+											setLayer(e.target.value);
+										}
+									}}
+									className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-40 disabled:cursor-not-allowed"
+								>
+									<option value="">No layer</option>
+									{existingLayers.map((l) => (
+										<option key={l} value={l}>
+											{l}
+										</option>
+									))}
+									<option value="__new__">+ Create new layer</option>
+								</select>
+							)}
 						</div>
 					</div>
 
@@ -710,18 +809,20 @@ function DashboardView({
 				))}
 			</div>
 
-			{/* Filtered books */}
-			{isSearching && filteredBooks.length === 0 ? (
-				<p className="text-sm text-muted-foreground">No books found.</p>
-			) : (
-				<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-					{filteredBooks.map((book) => (
-						<BookCard
-							key={book.id}
-							book={book}
-							onClick={() => onBookClick(book)}
-						/>
-					))}
+			{isSearching && filteredBooks.length > 0 && (
+				<div className="space-y-3">
+					<h3 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">
+						Search Results
+					</h3>
+					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+						{filteredBooks.map((book) => (
+							<BookCard
+								key={book.id}
+								book={book}
+								onClick={() => onBookClick(book)}
+							/>
+						))}
+					</div>
 				</div>
 			)}
 
@@ -872,6 +973,72 @@ function DomainView({
 	);
 }
 
+// ─── Edit Domain Modal ─────────────────────────────────────────────────────
+
+function EditDomainModal({
+	domain,
+	currentShort,
+	onClose,
+	onSave,
+}: {
+	domain: string;
+	currentShort: string;
+	onClose: () => void;
+	onSave: (fullName: string, shortName: string) => void;
+}) {
+	const [fullName, setFullName] = useState(domain);
+	const [shortName, setShortName] = useState(currentShort);
+
+	return (
+		<Dialog open onOpenChange={onClose}>
+			<DialogContent className="sm:max-w-[400px] p-0 overflow-hidden flex flex-col">
+				<div className="px-6 pt-5 pb-4">
+					<DialogHeader>
+						<DialogTitle>Edit Domain</DialogTitle>
+					</DialogHeader>
+				</div>
+				<div className="px-6 pb-6 space-y-4 border-t border-border/60 pt-4 bg-secondary/20">
+					<div className="space-y-1.5">
+						<label className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+							Full Name
+						</label>
+						<input
+							value={fullName}
+							onChange={(e) => setFullName(e.target.value)}
+							className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						/>
+					</div>
+					<div className="space-y-1.5">
+						<label className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium">
+							Short Name (pill label)
+						</label>
+						<input
+							value={shortName}
+							onChange={(e) => setShortName(e.target.value)}
+							className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+						/>
+					</div>
+					<div className="flex justify-end gap-2 pt-1">
+						<Button variant="outline" size="sm" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button
+							size="sm"
+							disabled={!fullName.trim() || !shortName.trim()}
+							onClick={() => {
+								onSave(fullName.trim(), shortName.trim());
+								onClose();
+							}}
+						>
+							Save
+						</Button>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 // ─── Main BookView ────────────────────────────────────────────────────────────
 
 export function BookView() {
@@ -884,9 +1051,82 @@ export function BookView() {
 		handleStatusChange,
 	} = useBooks();
 	const [activeDomain, setActiveDomain] = useState<string>("__dashboard__");
-	const [search, setSearch] = useState("");
-	const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+	const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
 	const [showAddModal, setShowAddModal] = useState(false);
+
+	const [search, setSearch] = useState("");
+	const [debouncedSearch, setDebouncedSearch] = useState("");
+
+	const [domainMenu, setDomainMenu] = useState<{
+		domain: string;
+		x: number;
+		y: number;
+	} | null>(null);
+	const [editingDomain, setEditingDomain] = useState<string | null>(null);
+	const [domainShortMap, setDomainShortMap] =
+		useState<Record<string, string>>(DOMAIN_SHORT);
+
+	const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const handleDomainMouseDown = (e: React.MouseEvent, domain: string) => {
+		longPressTimer.current = setTimeout(() => {
+			setDomainMenu({ domain, x: e.clientX, y: e.clientY });
+		}, 500);
+	};
+
+	const handleDomainMouseUp = () => {
+		if (longPressTimer.current) clearTimeout(longPressTimer.current);
+	};
+
+	const handleDomainContextMenu = (e: React.MouseEvent, domain: string) => {
+		e.preventDefault();
+		setDomainMenu({ domain, x: e.clientX, y: e.clientY });
+	};
+
+	const handleUpdateDomain = async (
+		oldName: string,
+		newName: string,
+		newShort: string,
+	) => {
+		// Update all books with this domain
+		const affected = books.filter((b) => b.domain === oldName);
+		await Promise.all(
+			affected.map((b) => handleUpdate(b.id, { domain: newName })),
+		);
+		// Update DOMAIN_SHORT — since it's a module constant you'll want to move it to state
+		setDomainShortMap((prev) => {
+			const next = { ...prev };
+			delete next[oldName];
+			next[newName] = newShort;
+			return next;
+		});
+		if (activeDomain === oldName) setActiveDomain(newName);
+	};
+
+	const handleDeleteDomain = async (domain: string) => {
+		const affected = books.filter((b) => b.domain === domain);
+		await Promise.all(affected.map((b) => handleDelete(b.id)));
+		if (activeDomain === domain) setActiveDomain("__dashboard__");
+	};
+
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			setDebouncedSearch(search);
+		}, 300);
+		return () => clearTimeout(timer);
+	}, [search]);
+
+	useEffect(() => {
+		if (!domainMenu) return;
+		const handler = () => setDomainMenu(null);
+		window.addEventListener("click", handler);
+		return () => window.removeEventListener("click", handler);
+	}, [domainMenu]);
+
+	const selectedBook = useMemo(
+		() => books.find((b) => b.id === selectedBookId) ?? null,
+		[books, selectedBookId],
+	);
 
 	// Derive ordered domain list from actual data
 	const domains = useMemo(() => {
@@ -959,17 +1199,22 @@ export function BookView() {
 
 					{domains.map((domain) => {
 						const count = books.filter((b) => b.domain === domain).length;
-						const short = DOMAIN_SHORT[domain] ?? domain;
+						const short = domainShortMap[domain] ?? domain;
 						const isActive = activeDomain === domain;
 						return (
 							<button
 								key={domain}
+								title={domain}
 								onClick={() => setActiveDomain(domain)}
 								className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0 ${
 									isActive
 										? "bg-foreground text-background"
 										: "text-muted-foreground hover:text-foreground hover:bg-accent"
 								}`}
+								onMouseDown={(e) => handleDomainMouseDown(e, domain)}
+								onMouseUp={handleDomainMouseUp}
+								onMouseLeave={handleDomainMouseUp}
+								onContextMenu={(e) => handleDomainContextMenu(e, domain)}
 							>
 								{short}
 								<span
@@ -988,25 +1233,16 @@ export function BookView() {
 			<div className="flex-1 min-h-0 overflow-y-auto">
 				{activeDomain === "__dashboard__" ? (
 					<DashboardView
-						// books={
-						// 	search.trim()
-						// 		? books.filter(
-						// 				(b) =>
-						// 					b.title.toLowerCase().includes(search.toLowerCase()) ||
-						// 					b.author.toLowerCase().includes(search.toLowerCase()),
-						// 			)
-						// 		: books
-						// }
 						books={books}
-						search={search}
-						onBookClick={setSelectedBook}
+						search={debouncedSearch}
+						onBookClick={(book) => setSelectedBookId(book.id)}
 					/>
 				) : (
 					<DomainView
 						domain={activeDomain}
 						books={domainBooks}
-						search={search}
-						onBookClick={setSelectedBook}
+						search={debouncedSearch}
+						onBookClick={(book) => setSelectedBookId(book.id)}
 					/>
 				)}
 			</div>
@@ -1014,22 +1250,16 @@ export function BookView() {
 			{selectedBook && (
 				<BookModal
 					book={selectedBook}
-					onClose={() => setSelectedBook(null)}
+					onClose={() => setSelectedBookId(null)}
 					onUpdate={async (id, updates) => {
 						await handleUpdate(id, updates);
-						setSelectedBook((prev) =>
-							prev?.id === id ? { ...prev, ...updates } : prev,
-						);
 					}}
 					onDelete={async (id) => {
-						setSelectedBook(null);
+						setSelectedBookId(null);
 						await handleDelete(id);
 					}}
 					onStatusChange={async (id, status) => {
 						await handleStatusChange(id, status);
-						setSelectedBook((prev) =>
-							prev?.id === id ? { ...prev, status } : prev,
-						);
 					}}
 				/>
 			)}
@@ -1038,6 +1268,46 @@ export function BookView() {
 				<AddBookModal
 					onClose={() => setShowAddModal(false)}
 					onAdd={handleAdd}
+					domains={domains}
+					books={books}
+				/>
+			)}
+
+			{domainMenu && (
+				<div
+					className="fixed z-50 bg-popover border border-border rounded-xl shadow-lg py-1 min-w-[160px]"
+					style={{ top: domainMenu.y, left: domainMenu.x }}
+					onClick={(e) => e.stopPropagation()}
+				>
+					<button
+						className="w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors"
+						onClick={() => {
+							setEditingDomain(domainMenu.domain);
+							setDomainMenu(null);
+						}}
+					>
+						Edit domain
+					</button>
+					<button
+						className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+						onClick={() => {
+							handleDeleteDomain(domainMenu.domain);
+							setDomainMenu(null);
+						}}
+					>
+						Delete domain
+					</button>
+				</div>
+			)}
+
+			{editingDomain && (
+				<EditDomainModal
+					domain={editingDomain}
+					currentShort={DOMAIN_SHORT[editingDomain] ?? editingDomain}
+					onClose={() => setEditingDomain(null)}
+					onSave={(fullName, shortName) =>
+						handleUpdateDomain(editingDomain, fullName, shortName)
+					}
 				/>
 			)}
 		</div>
