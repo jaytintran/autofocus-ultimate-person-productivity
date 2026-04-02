@@ -1,17 +1,19 @@
 "use client";
 
-import { Settings, BookOpen, X, Folder } from "lucide-react";
+import { Settings, BookOpen, X, Folder, Flame } from "lucide-react";
 import { useState } from "react";
 import { AboutSection } from "./about-section";
 import { SettingsModal } from "./settings-modal";
 
 import { BookView } from "./book-view";
 import { ProjectView } from "./project-view";
+import { HabitView } from "./habit-view";
 
 export function Header() {
 	const [showSettings, setShowSettings] = useState(false);
 	const [showBooks, setShowBooks] = useState(false);
 	const [showProjects, setShowProjects] = useState(false);
+	const [showHabits, setShowHabits] = useState(false);
 
 	return (
 		<header className="flex items-center justify-between px-6 py-4 relative">
@@ -42,6 +44,16 @@ export function Header() {
 					title="Projects"
 				>
 					<Folder className="w-4 h-4" />
+				</button>
+
+				{/* Habits Button */}
+				<button
+					onClick={() => setShowHabits(true)}
+					className="p-2 hover:bg-accent rounded transition-colors"
+					aria-label="Habits"
+					title="Habits"
+				>
+					<Flame className="w-4 h-4" />
 				</button>
 
 				<AboutSection />
@@ -113,6 +125,32 @@ export function Header() {
 					</div>
 					<div className="flex-1 min-h-0">
 						<ProjectView />
+					</div>
+				</div>
+			)}
+
+			{/* Habits overlay */}
+			{showHabits && (
+				<div className="fixed inset-0 z-50 bg-background flex flex-col">
+					<div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+						<div>
+							<h2 className="text-sm tracking-[0.3em] font-medium">
+								H<span className="text-af4-olive">A</span>BITS
+							</h2>
+							<p className="text-[0.625rem] uppercase text-muted-foreground mt-0.5">
+								Your active habits
+							</p>
+						</div>
+						<button
+							onClick={() => setShowHabits(false)}
+							className="p-2 hover:bg-accent rounded transition-colors"
+							aria-label="Close habits"
+						>
+							<X className="w-4 h-4" />
+						</button>
+					</div>
+					<div className="flex-1 min-h-0">
+						<HabitView />
 					</div>
 				</div>
 			)}
