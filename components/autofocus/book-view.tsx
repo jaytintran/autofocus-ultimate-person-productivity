@@ -1075,6 +1075,11 @@ function BookSidebar({
 	onToggleCollapse,
 	mobileOpen,
 	onMobileClose,
+	search,
+	setSearch,
+	onDomainContextMenu,
+	onDomainMouseDown,
+	onDomainMouseUp,
 }: {
 	domains: string[];
 	books: Book[];
@@ -1085,6 +1090,11 @@ function BookSidebar({
 	onToggleCollapse: () => void;
 	mobileOpen: boolean;
 	onMobileClose: () => void;
+	search: string;
+	setSearch: (s: string) => void;
+	onDomainContextMenu: (e: React.MouseEvent, domain: string) => void;
+	onDomainMouseDown: (e: React.MouseEvent, domain: string) => void;
+	onDomainMouseUp: () => void;
 }) {
 	const [addingDomain, setAddingDomain] = useState(false);
 	const [newDomainName, setNewDomainName] = useState("");
@@ -1107,25 +1117,48 @@ function BookSidebar({
 
 	const SidebarContent = (
 		<div
-			className={`flex flex-col h-[95vh] pb-7 bg-card border-r border-border/50 transition-all duration-200 ${collapsed ? "w-14" : "w-fit"}`}
+			className={`flex flex-col h-screen bg-card border-r border-border/50 transition-all duration-200 ${collapsed ? "w-14" : "w-fit"}`}
 		>
-			{/* Header */}
+			{/* Search */}
 			<div
-				className={`flex items-center px-3 py-3 border-b border-border/50 flex-shrink-0 ${collapsed ? "justify-center" : "justify-between"}`}
+				className={`flex-shrink-0 border-b border-border/50 ${collapsed ? "flex justify-center px-2 py-2" : "px-2 py-2"}`}
 			>
-				{!collapsed && (
-					<span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
-						Library
-					</span>
+				{collapsed ? (
+					<button
+						onClick={onToggleCollapse}
+						title="Expand to search"
+						className="p-2 rounded-lg hover:bg-accent text-muted-foreground/50 hover:text-foreground transition-colors"
+					>
+						<Search className="w-4 h-4" />
+					</button>
+				) : (
+					<div className="flex items-center gap-2 bg-secondary/10 rounded-lg px-2.5 py-2">
+						<Search className="w-3.5 h-3.5 text-foreground shrink-0" />
+						<input
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							placeholder="Search..."
+							className="flex-1 bg-transparent text-[12px] outline-none placeholder:text-muted-foreground/30 min-w-0 w-32"
+						/>
+						{search && (
+							<button
+								onClick={() => setSearch("")}
+								className="text-muted-foreground/40 hover:text-foreground transition-colors flex-shrink-0"
+							>
+								<X className="w-3 h-3" />
+							</button>
+						)}
+
+						<button
+							onClick={onToggleCollapse}
+							className="p-1 rounded-md hover:bg-accent text-muted-foreground/60 hover:text-foreground transition-colors hidden sm:flex"
+						>
+							<ChevronRight
+								className={`w-4 h-4 transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
+							/>
+						</button>
+					</div>
 				)}
-				<button
-					onClick={onToggleCollapse}
-					className="p-1 rounded-md hover:bg-accent text-muted-foreground/60 hover:text-foreground transition-colors hidden sm:flex"
-				>
-					<ChevronRight
-						className={`w-4 h-4 transition-transform duration-200 ${collapsed ? "" : "rotate-180"}`}
-					/>
-				</button>
 			</div>
 
 			{/* Nav items */}
@@ -1141,8 +1174,8 @@ function BookSidebar({
 							}}
 							title="Overview"
 							className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm font-medium transition-colors group
-                ${isActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"}
-                ${collapsed ? "justify-center" : ""}`}
+                			${isActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"}
+                			${collapsed ? "justify-center" : ""}`}
 						>
 							<BookMarked className="w-4 h-4 flex-shrink-0" />
 							{!collapsed && (
@@ -1170,6 +1203,10 @@ function BookSidebar({
 							className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition-colors group relative
             	   	 				${isActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"}
                 					${collapsed ? "justify-center" : ""}`}
+							onMouseDown={(e) => onDomainMouseDown(e, domain)}
+							onMouseUp={onDomainMouseUp}
+							onMouseLeave={onDomainMouseUp}
+							onContextMenu={(e) => onDomainContextMenu(e, domain)}
 						>
 							<Icon className="w-4 h-4 flex-shrink-0" />
 							{!collapsed && (
@@ -1193,6 +1230,8 @@ function BookSidebar({
 					);
 				})}
 
+				<div className="h-px bg-border/40 my-1 mx-1" />
+
 				{/* Inline new domain input */}
 				{addingDomain && !collapsed && (
 					<div className="px-2 py-1">
@@ -1213,18 +1252,13 @@ function BookSidebar({
 						/>
 					</div>
 				)}
-			</div>
 
-			{/* Footer actions */}
-			<div
-				className={`w-full p-2 flex-shrink-0 flex flex-col gap-1 ${collapsed ? "items-center" : ""}`}
-			>
 				{/* Add book */}
 				<button
 					onClick={onAddBook}
 					title="Add Book"
-					className={`flex items-center px-2 py-3 justify-center gap-1 rounded-lg text-xs font-medium bg-[#8b9a6b]/10 hover:bg-[#8b9a6b]/20 text-[#8b9a6b] transition-colors
-            ${collapsed ? "w-8 h-8 justify-center" : "w-full"}`}
+					className={`mt-5 flex items-center px-2 py-3 justify-center gap-1 rounded-lg text-xs font-medium bg-[#8b9a6b]/10 hover:bg-[#8b9a6b]/20 text-[#8b9a6b] transition-colors
+            			${collapsed ? "w-8 h-8 justify-center" : "w-full"}`}
 				>
 					<Plus className="w-3.5 h-3.5 flex-shrink-0" />
 					{!collapsed && <span>Add Book</span>}
@@ -1271,7 +1305,7 @@ function BookSidebar({
 											onMobileClose();
 										}}
 										className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm font-medium transition-colors
-                      ${activeDomain === "__dashboard__" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+                      					${activeDomain === "__dashboard__" ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
 									>
 										<BookMarked className="w-4 h-4 flex-shrink-0" />
 										<span className="truncate flex-1 text-left">Overview</span>
@@ -1291,7 +1325,11 @@ function BookSidebar({
 													onMobileClose();
 												}}
 												className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-lg text-sm transition-colors
-                          ${isActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+                          						${isActive ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+												onMouseDown={(e) => onDomainMouseDown(e, domain)}
+												onMouseUp={onDomainMouseUp}
+												onMouseLeave={onDomainMouseUp}
+												onContextMenu={(e) => onDomainContextMenu(e, domain)}
 											>
 												<Icon className="w-4 h-4 flex-shrink-0" />
 												<span className="truncate flex-1 text-left text-[13px]">
@@ -1434,13 +1472,14 @@ export function BookView() {
 	}
 
 	return (
-		<div className="flex flex-col h-screen overflow-hidden">
+		<div className="flex flex-col h-full overflow-hidden">
 			{/* Hamburger — mobile only */}
 			<button
 				onClick={() => setMobileSidebarOpen(true)}
-				className="fixed top-4.75 right-15 sm:hidden p-1.75 border rounded-[0.25rem] hover:bg-af4-olive-muted  text-muted-foreground/60 hover:text-foreground transition-colors flex-shrink-0"
+				className="fixed bottom-5 right-5 sm:hidden p-3 bg-foreground text-background rounded-full shadow-lg hover:bg-foreground/90 transition-all z-50"
+				aria-label="Menu"
 			>
-				<Menu className="w-4 h-4" />
+				<Menu className="w-5 h-5" />
 			</button>
 
 			<div className="flex flex-1 min-h-0 overflow-hidden">
@@ -1454,38 +1493,15 @@ export function BookView() {
 					onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
 					mobileOpen={mobileSidebarOpen}
 					onMobileClose={() => setMobileSidebarOpen(false)}
+					search={search}
+					setSearch={setSearch}
+					onDomainContextMenu={handleDomainContextMenu}
+					onDomainMouseDown={handleDomainMouseDown}
+					onDomainMouseUp={handleDomainMouseUp}
 				/>
 
 				{/* Main content */}
-				<div className="flex-1 min-w-0 min-h-0 overflow-y-auto ">
-					<div className="flex gap-3 px-5 mt-5">
-						{/* Search */}
-						<div className="relative flex max-w-[600px] items-center gap-2 flex-1 bg-secondary/50 px-3 py-3 rounded-full">
-							<Search className="w-3.5 h-3.5 text-muted-foreground/50 flex-shrink-0" />
-							<input
-								value={search}
-								onChange={(e) => setSearch(e.target.value)}
-								placeholder="Search title or author..."
-								className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/40"
-							/>
-							{search && (
-								<button
-									onClick={() => setSearch("")}
-									className="text-muted-foreground/50 hover:text-foreground transition-colors"
-								>
-									<X className="w-3.5 h-3.5" />
-								</button>
-							)}
-							{/* Add book */}
-							<button
-								onClick={() => setShowAddModal(true)}
-								className="absolute right-0.5 py-4 px-4 bg-transparent hover:bg-[#8b9a6b]/20 text-[#8b9a6b] rounded-r-full border-l-0 transition-colors"
-							>
-								<Plus className="w-3 h-3" />
-							</button>
-						</div>
-					</div>
-
+				<div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-y-scroll">
 					{activeDomain === "__dashboard__" ? (
 						<DashboardView
 							books={books}
