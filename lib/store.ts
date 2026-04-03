@@ -431,11 +431,39 @@ export async function deleteTask(
 // App State functions
 export async function getAppState(): Promise<AppState> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("app_state")
 		.select("*")
-		.eq("id", APP_STATE_ID)
+		.eq("user_id", user.id)
 		.single();
+
+	if (error && error.code === "PGRST116") {
+		// No row yet — create one for this user
+		const { data: newState, error: insertError } = await supabase
+			.from("app_state")
+			.insert({
+				id: crypto.randomUUID(),
+				user_id: user.id,
+				current_page: 1,
+				page_size: 12,
+				last_pass_had_no_action: false,
+				working_on_task_id: null,
+				session_start_time: null,
+				timer_state: "idle",
+				current_session_ms: 0,
+				default_filter: "all",
+			})
+			.select()
+			.single();
+
+		if (insertError) throw insertError;
+		return newState;
+	}
 
 	if (error) throw error;
 	return data;

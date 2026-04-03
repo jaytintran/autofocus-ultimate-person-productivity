@@ -5,18 +5,19 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	FunnelPlus,
-	LibraryBig,
+	Compass,
 	BookOpen,
 	GraduationCap,
 	FolderKanban,
 	Lightbulb,
 	NotebookPen,
-	Inbox,
 	Search,
 	X,
-	Trophy,
 	RefreshCw,
 	Flame,
+	Trophy,
+	Inbox,
+	LibraryBig,
 } from "lucide-react";
 import {
 	Dialog,
@@ -73,8 +74,17 @@ const NOTION_PAGES = [
 
 const THOUGHTS_CAPTURER = NOTION_PAGES[0];
 
-function SecondBrainButton() {
+function CompassButton({
+	completedTasksWithNotes,
+	onRefreshAchievements,
+	pamphlets,
+}: {
+	completedTasksWithNotes: PageNavProps["completedTasksWithNotes"];
+	onRefreshAchievements: () => void;
+	pamphlets: Pamphlet[];
+}) {
 	const [open, setOpen] = useState(false);
+	const [achievementsOpen, setAchievementsOpen] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -92,93 +102,203 @@ function SecondBrainButton() {
 	}, [open]);
 
 	return (
-		<Tooltip.Provider>
-			<div ref={containerRef} className="relative">
-				{open && (
-					<div className="absolute right-5 top-full mb-2 w-64 bg-card border border-border rounded-2xl shadow-xl p-4 z-50">
-						<p className="text-[11px] text-muted-foreground leading-relaxed mb-3">
-							Not sure what to work on? Browse your Second Brain for
-							inspiration.
+		<div ref={containerRef} className="relative">
+			{open && (
+				<div className="absolute right-0 top-full mt-2 w-72 bg-card border border-border rounded-2xl shadow-xl p-4 z-50 flex flex-col gap-4">
+					{/* Achievements section */}
+					<div className="flex flex-col gap-1">
+						<p className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium px-1">
+							Achievements
 						</p>
-						<div className="border-t border-border mb-3" />
-						<div className="flex flex-col gap-1">
-							{NOTION_PAGES.map((page) => {
-								const Icon = page.icon;
-								return (
-									<Link
-										key={page.label}
-										href={page.href}
-										onClick={() => setOpen(false)}
-										className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-accent transition-colors group"
-									>
-										<div className="p-1.5 rounded-md bg-[#8b9a6b]/10 group-hover:bg-[#8b9a6b]/20 transition-colors shrink-0">
-											<Icon className="w-3.5 h-3.5 text-[#8b9a6b]" />
-										</div>
-										<div className="min-w-0">
-											<p className="text-sm font-medium text-foreground leading-none mb-0.5">
-												{page.label}
-											</p>
-											<p className="text-[11px] text-muted-foreground truncate">
-												{page.description}
-											</p>
-										</div>
-									</Link>
-								);
-							})}
-						</div>
+						<button
+							onClick={() => {
+								setOpen(false);
+								setAchievementsOpen(true);
+							}}
+							className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-accent transition-colors text-left"
+						>
+							<div className="p-1.5 rounded-md bg-amber-500/10 shrink-0">
+								<Trophy className="w-3.5 h-3.5 text-amber-500" />
+							</div>
+							<div className="min-w-0">
+								<p className="text-sm font-medium text-foreground leading-none mb-0.5">
+									Your Achievements
+								</p>
+								<p className="text-[11px] text-muted-foreground">
+									Tasks completed with notes
+								</p>
+							</div>
+						</button>
 					</div>
-				)}
 
-				<div className="flex gap-2">
-					{/* THOUGHTS CAPTURER */}
-					<Tooltip.Root>
-						<Tooltip.Trigger asChild>
-							<Link href={THOUGHTS_CAPTURER.href}>
-								<button className="text-xs border border-border rounded-full p-1.75 transition-colors text-muted-foreground hover:text-foreground hover:bg-accent">
-									<Inbox className="w-4 h-4" />
-								</button>
-							</Link>
-						</Tooltip.Trigger>
-						<Tooltip.Portal>
-							<Tooltip.Content
-								side="top"
-								className="bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-md"
-							>
-								Open Thoughts Capturer
-								<Tooltip.Arrow className="fill-foreground" />
-							</Tooltip.Content>
-						</Tooltip.Portal>
-					</Tooltip.Root>
+					<div className="h-px bg-border" />
 
-					{/* SECOND BRAIN */}
-					<Tooltip.Root>
-						<Tooltip.Trigger asChild>
-							<button
-								type="button"
-								onClick={() => setOpen((prev) => !prev)}
-								className={`text-xs border border-border rounded-full p-1.75 transition-colors
-									${
-										open
-											? "text-[#8b9a6b] bg-[#8b9a6b]/10 border-[#8b9a6b]/40"
-											: "text-muted-foreground hover:text-foreground hover:bg-accent"
-									}`}
-							>
-								<LibraryBig className="w-4 h-4" />
-							</button>
-						</Tooltip.Trigger>
-						<Tooltip.Portal>
-							<Tooltip.Content
-								side="top"
-								className="bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-md"
-							>
-								Open Second Brain
-								<Tooltip.Arrow className="fill-foreground" />
-							</Tooltip.Content>
-						</Tooltip.Portal>
-					</Tooltip.Root>
+					{/* Thoughts capturer */}
+					<div className="flex flex-col gap-1">
+						<p className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium px-1">
+							Capture
+						</p>
+						<Link
+							href={NOTION_PAGES[0].href}
+							onClick={() => setOpen(false)}
+							className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-accent transition-colors"
+						>
+							<div className="p-1.5 rounded-md bg-[#8b9a6b]/10 shrink-0">
+								<Inbox className="w-3.5 h-3.5 text-[#8b9a6b]" />
+							</div>
+							<div className="min-w-0">
+								<p className="text-sm font-medium text-foreground leading-none mb-0.5">
+									Thoughts Capturer
+								</p>
+								<p className="text-[11px] text-muted-foreground">
+									Dump ideas before they vanish
+								</p>
+							</div>
+						</Link>
+					</div>
+
+					<div className="h-px bg-border" />
+
+					{/* Second brain links */}
+					<div className="flex flex-col gap-1">
+						<p className="text-[10px] uppercase tracking-widest text-muted-foreground/50 font-medium px-1">
+							Second Brain
+						</p>
+						{NOTION_PAGES.slice(1).map((page) => {
+							const Icon = page.icon;
+							return (
+								<Link
+									key={page.label}
+									href={page.href}
+									onClick={() => setOpen(false)}
+									className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-accent transition-colors group"
+								>
+									<div className="p-1.5 rounded-md bg-[#8b9a6b]/10 group-hover:bg-[#8b9a6b]/20 transition-colors shrink-0">
+										<Icon className="w-3.5 h-3.5 text-[#8b9a6b]" />
+									</div>
+									<div className="min-w-0">
+										<p className="text-sm font-medium text-foreground leading-none mb-0.5">
+											{page.label}
+										</p>
+										<p className="text-[11px] text-muted-foreground truncate">
+											{page.description}
+										</p>
+									</div>
+								</Link>
+							);
+						})}
+					</div>
 				</div>
-			</div>
-		</Tooltip.Provider>
+			)}
+
+			<Tooltip.Provider>
+				<Tooltip.Root>
+					<Tooltip.Trigger asChild>
+						<button
+							type="button"
+							onClick={() => setOpen((prev) => !prev)}
+							className={`text-xs border rounded-full p-1.75 transition-colors
+                ${
+									open
+										? "border-[#8b9a6b]/40 bg-[#8b9a6b]/10 text-[#8b9a6b]"
+										: "border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+								}`}
+						>
+							<Compass className="w-4 h-4" />
+						</button>
+					</Tooltip.Trigger>
+					<Tooltip.Portal>
+						<Tooltip.Content
+							side="top"
+							className="bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-md"
+						>
+							Navigate
+							<Tooltip.Arrow className="fill-foreground" />
+						</Tooltip.Content>
+					</Tooltip.Portal>
+				</Tooltip.Root>
+			</Tooltip.Provider>
+
+			{/* Achievements dialog — lives outside the popover */}
+			{achievementsOpen && (
+				<Dialog open={achievementsOpen} onOpenChange={setAchievementsOpen}>
+					<DialogContent className="sm:max-w-[760px] h-[75vh] flex flex-col overflow-hidden">
+						<DialogHeader className="flex-shrink-0 border-b pb-4">
+							<DialogTitle>Your Achievements 🏆</DialogTitle>
+							<DialogDescription>
+								Look how much you've done. Be proud.
+							</DialogDescription>
+						</DialogHeader>
+						<div className="absolute top-4 right-10">
+							<button
+								onClick={onRefreshAchievements}
+								className="absolute text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-accent top-[-2px] right-[1px]"
+								title="Refresh"
+							>
+								<RefreshCw className="w-3 h-3" />
+							</button>
+						</div>
+						<div
+							className="flex-1 min-h-0 overflow-y-auto mt-4 pr-1 flex flex-col gap-3"
+							style={{ scrollbarWidth: "thin" }}
+						>
+							{completedTasksWithNotes.length === 0 ? (
+								<p className="text-sm text-muted-foreground text-center py-8">
+									No achievements yet. Complete a task and add a note!
+								</p>
+							) : (
+								completedTasksWithNotes.map((task, i) => {
+									const date = new Date(task.completed_at);
+									const pamphlet =
+										pamphlets.find((p) => p.id === task.pamphlet_id) ?? null;
+									return (
+										<div
+											key={i}
+											className="flex flex-col gap-0.5 py-2 border-b border-border/50 last:border-0"
+										>
+											<p className="text-sm font-medium text-foreground leading-snug">
+												{task.note}
+											</p>
+											<p className="text-[11px] text-muted-foreground">
+												<span className="underline">From the task</span> :{" "}
+												{task.text}
+											</p>
+											<div className="flex items-center gap-2 mt-0.5">
+												<p className="text-[11px] text-muted-foreground/60">
+													{date.toLocaleDateString(undefined, {
+														weekday: "short",
+														year: "numeric",
+														month: "short",
+														day: "numeric",
+													})}
+													{" · "}
+													{date.toLocaleTimeString(undefined, {
+														hour: "2-digit",
+														minute: "2-digit",
+													})}
+												</p>
+												{pamphlet && (
+													<>
+														<span className="text-muted-foreground/40 text-[11px]">
+															·
+														</span>
+														<span
+															className={`text-[11px] font-medium ${PAMPHLET_COLORS[pamphlet.color].text}`}
+														>
+															{pamphlet.name}
+														</span>
+													</>
+												)}
+											</div>
+										</div>
+									);
+								})
+							)}
+						</div>
+					</DialogContent>
+				</Dialog>
+			)}
+		</div>
 	);
 }
 
@@ -222,7 +342,6 @@ export function PageNav({
 }: PageNavProps) {
 	const [searchOpen, setSearchOpen] = useState(false);
 	const searchInputRef = useRef<HTMLInputElement>(null);
-	const [achievementsOpen, setAchievementsOpen] = useState(false);
 
 	useEffect(() => {
 		if (searchOpen) {
@@ -292,6 +411,7 @@ export function PageNav({
 
 				{/* Right side — search + second brain */}
 				<div className="flex items-center gap-2">
+					{/* Search Button*/}
 					{searchOpen ? (
 						<div className="flex items-center gap-1 bg-secondary rounded-full px-3 py-1">
 							<Search className="w-3 h-3 mr-1 text-muted-foreground shrink-0" />
@@ -320,7 +440,7 @@ export function PageNav({
 						</button>
 					)}
 
-					{/* Achievements Button */}
+					{/* Habits Button */}
 					<Tooltip.Provider>
 						{/* Habits toggle button */}
 						<Tooltip.Root>
@@ -352,29 +472,14 @@ export function PageNav({
 								</Tooltip.Content>
 							</Tooltip.Portal>
 						</Tooltip.Root>
-
-						<Tooltip.Root>
-							<Tooltip.Trigger asChild>
-								<button
-									onClick={() => setAchievementsOpen(true)}
-									className="text-xs border border-border rounded-full p-1.75 transition-colors text-muted-foreground hover:text-foreground hover:bg-accent"
-								>
-									<Trophy className="w-4 h-4" />
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Portal>
-								<Tooltip.Content
-									side="top"
-									className="bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-md"
-								>
-									Your Achievements
-									<Tooltip.Arrow className="fill-foreground" />
-								</Tooltip.Content>
-							</Tooltip.Portal>
-						</Tooltip.Root>
 					</Tooltip.Provider>
 
-					<SecondBrainButton />
+					{/* Compass Button */}
+					<CompassButton
+						completedTasksWithNotes={completedTasksWithNotes}
+						onRefreshAchievements={onRefreshAchievements}
+						pamphlets={pamphlets}
+					/>
 				</div>
 			</div>
 
@@ -401,88 +506,6 @@ export function PageNav({
 					🏷️ {taskTagCounts.none ?? 0} untagged
 				</span>
 			</div>
-
-			{achievementsOpen && (
-				<Dialog open={achievementsOpen} onOpenChange={setAchievementsOpen}>
-					<DialogContent className="sm:max-w-[760px] h-[75vh] flex flex-col overflow-hidden">
-						<DialogHeader className="flex-shrink-0 border-b pb-4">
-							<DialogTitle>Your Achievements 🏆</DialogTitle>
-							<DialogDescription>
-								Look how much you've done. Be proud.
-							</DialogDescription>
-						</DialogHeader>
-
-						{/* Refresh button — top right area, before DialogContent closes */}
-						<div className="absolute top-4 right-10">
-							<button
-								onClick={onRefreshAchievements}
-								className="absolute text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-accent top-[-2px] right-[1px]"
-								title="Refresh"
-							>
-								<RefreshCw className="w-3 h-3" />
-							</button>
-						</div>
-
-						<div
-							className="flex-1 min-h-0 overflow-y-auto mt-4 pr-1 flex flex-col gap-3"
-							style={{ scrollbarWidth: "thin" }}
-						>
-							{completedTasksWithNotes.length === 0 ? (
-								<p className="text-sm text-muted-foreground text-center py-8">
-									No achievements yet. Complete a task and add a note!
-								</p>
-							) : (
-								completedTasksWithNotes.map((task, i) => {
-									const date = new Date(task.completed_at);
-									const pamphlet =
-										pamphlets.find((p) => p.id === task.pamphlet_id) ?? null;
-									return (
-										<div
-											key={i}
-											className="flex flex-col gap-0.5 py-2 border-b border-border/50 last:border-0"
-										>
-											<p className="text-sm font-medium text-foreground leading-snug">
-												{task.note}
-											</p>
-											<p className="text-[11px] text-muted-foreground">
-												<span className="underline">From the task</span> :{" "}
-												{task.text}
-											</p>
-											<div className="flex items-center gap-2 mt-0.5">
-												<p className="text-[11px] text-muted-foreground/60">
-													{date.toLocaleDateString(undefined, {
-														weekday: "short",
-														year: "numeric",
-														month: "short",
-														day: "numeric",
-													})}
-													{" · "}
-													{date.toLocaleTimeString(undefined, {
-														hour: "2-digit",
-														minute: "2-digit",
-													})}
-												</p>
-												{pamphlet && (
-													<>
-														<span className="text-muted-foreground/40 text-[11px]">
-															·
-														</span>
-														<span
-															className={`text-[11px] font-medium ${PAMPHLET_COLORS[pamphlet.color].text}`}
-														>
-															{pamphlet.name}
-														</span>
-													</>
-												)}
-											</div>
-										</div>
-									);
-								})
-							)}
-						</div>
-					</DialogContent>
-				</Dialog>
-			)}
 		</div>
 	);
 }
