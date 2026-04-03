@@ -116,6 +116,10 @@ export async function addTask(
 	pamphletId?: string | null,
 ): Promise<Task> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
 
 	// Shift all existing active tasks down by 1
 	const { data: existingTasks } = await supabase
@@ -154,6 +158,7 @@ export async function addTask(
 			tag: tag ?? null,
 			due_date: dueDate ?? null,
 			pamphlet_id: pamphletId ?? null,
+			user_id: user.id,
 		})
 		.select()
 		.single();
@@ -176,6 +181,10 @@ export async function addMultipleTasks(
 	}>,
 ): Promise<Task[]> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
 
 	// Shift all existing active tasks down
 	const { data: existingTasks } = await supabase
@@ -217,6 +226,7 @@ export async function addMultipleTasks(
 				tag: t.tag ?? null,
 				due_date: t.dueDate ?? null,
 				pamphlet_id: t.pamphletId ?? null,
+				user_id: user.id,
 			})),
 		)
 		.select();
@@ -308,6 +318,11 @@ export async function reenterTask(
 	pamphletId?: string | null,
 ): Promise<Task> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("tasks")
 		.insert({
@@ -319,59 +334,13 @@ export async function reenterTask(
 			re_entered_from: originalTaskId,
 			tag: tag ?? null,
 			pamphlet_id: pamphletId ?? null,
+			user_id: user.id,
 		})
 		.select()
 		.single();
 
 	if (error) throw error;
 	return data;
-}
-
-export async function deleteTaskOld(id: string): Promise<void> {
-	const supabase = createClient();
-
-	const { data: deletedTask, error: fetchError } = await supabase
-		.from("tasks")
-		.select("page_number, position, status")
-		.eq("id", id)
-		.single();
-
-	if (fetchError) throw fetchError;
-
-	const { error: deleteError } = await supabase
-		.from("tasks")
-		.delete()
-		.eq("id", id);
-	if (deleteError) throw deleteError;
-
-	if (!deletedTask || deletedTask.status === "completed") return;
-
-	// Re-index the full active list (not just from deleted page)
-	const { data: remainingTasks, error: reorderFetchError } = await supabase
-		.from("tasks")
-		.select("id, page_number, position")
-		.in("status", ["active", "in-progress"])
-		.order("page_number", { ascending: true })
-		.order("position", { ascending: true });
-
-	if (reorderFetchError) throw reorderFetchError;
-	if (!remainingTasks || remainingTasks.length === 0) return;
-
-	const PAGE_SIZE = 12;
-	const now = new Date().toISOString();
-
-	for (const [index, task] of remainingTasks.entries()) {
-		const { error } = await supabase
-			.from("tasks")
-			.update({
-				page_number: Math.floor(index / PAGE_SIZE) + 1,
-				position: index % PAGE_SIZE,
-				updated_at: now,
-			})
-			.eq("id", task.id);
-
-		if (error) throw error;
-	}
 }
 
 export async function deleteTask(
@@ -473,10 +442,15 @@ export async function updateAppState(
 	updates: Partial<AppState>,
 ): Promise<AppState> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("app_state")
 		.update({ ...updates, updated_at: new Date().toISOString() })
-		.eq("id", APP_STATE_ID)
+		.eq("user_id", user.id)
 		.select()
 		.single();
 
@@ -486,6 +460,11 @@ export async function updateAppState(
 
 export async function startWorkingOnTask(taskId: string): Promise<AppState> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("app_state")
 		.update({
@@ -495,7 +474,7 @@ export async function startWorkingOnTask(taskId: string): Promise<AppState> {
 			current_session_ms: 0,
 			updated_at: new Date().toISOString(),
 		})
-		.eq("id", APP_STATE_ID)
+		.eq("user_id", user.id)
 		.select()
 		.single();
 
@@ -512,6 +491,11 @@ export async function startWorkingOnTask(taskId: string): Promise<AppState> {
 
 export async function stopWorkingOnTask(): Promise<AppState> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("app_state")
 		.update({
@@ -521,7 +505,7 @@ export async function stopWorkingOnTask(): Promise<AppState> {
 			current_session_ms: 0,
 			updated_at: new Date().toISOString(),
 		})
-		.eq("id", APP_STATE_ID)
+		.eq("user_id", user.id)
 		.select()
 		.single();
 
@@ -531,6 +515,11 @@ export async function stopWorkingOnTask(): Promise<AppState> {
 
 export async function pauseTimer(currentSessionMs: number): Promise<AppState> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("app_state")
 		.update({
@@ -538,7 +527,7 @@ export async function pauseTimer(currentSessionMs: number): Promise<AppState> {
 			current_session_ms: currentSessionMs,
 			updated_at: new Date().toISOString(),
 		})
-		.eq("id", APP_STATE_ID)
+		.eq("user_id", user.id)
 		.select()
 		.single();
 
@@ -551,6 +540,10 @@ export async function stopTimer(
 	sessionTimeMs: number,
 ): Promise<{ appState: AppState; task: Task }> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
 
 	// First get the current task to add session time to total
 	const { data: currentTask, error: taskFetchError } = await supabase
@@ -584,7 +577,7 @@ export async function stopTimer(
 			session_start_time: null,
 			updated_at: new Date().toISOString(),
 		})
-		.eq("id", APP_STATE_ID)
+		.eq("user_id", user.id)
 		.select()
 		.single();
 
@@ -598,6 +591,10 @@ export async function reenterFromPanel(
 	taskText: string,
 ): Promise<Task> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
 
 	// Get the max position on the last page
 	const activeTasks = await getActiveTasks();
@@ -626,6 +623,7 @@ export async function reenterFromPanel(
 			status: "active",
 			total_time_ms: currentTask.total_time_ms || 0,
 			re_entered_from: taskId,
+			user_id: user.id,
 		})
 		.select()
 		.single();
@@ -650,6 +648,11 @@ export async function reenterFromPanel(
 
 export async function resumeTimer(): Promise<AppState> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("app_state")
 		.update({
@@ -657,7 +660,7 @@ export async function resumeTimer(): Promise<AppState> {
 			session_start_time: new Date().toISOString(),
 			updated_at: new Date().toISOString(),
 		})
-		.eq("id", APP_STATE_ID)
+		.eq("user_id", user.id)
 		.select()
 		.single();
 
@@ -846,66 +849,6 @@ export async function revertTask(
 	return data;
 }
 
-export async function markTaskDoneOld(
-	taskId: string,
-	totalTimeMs: number = 0,
-): Promise<Task> {
-	const supabase = createClient();
-
-	// 1. Mark the task as done
-	const { data, error } = await supabase
-		.from("tasks")
-		.update({
-			status: "completed",
-			completed_at: new Date().toISOString(),
-			total_time_ms: totalTimeMs,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("id", taskId)
-		.select()
-		.single();
-
-	if (error) throw error;
-
-	// 2. Fetch ALL remaining active tasks (both active and in-progress)
-	const { data: remainingTasks, error: fetchError } = await supabase
-		.from("tasks")
-		.select("id, page_number, position")
-		.in("status", ["active", "in-progress"])
-		.order("page_number", { ascending: true })
-		.order("position", { ascending: true });
-
-	if (fetchError) throw fetchError;
-
-	if (!remainingTasks || remainingTasks.length === 0) return data;
-
-	// 3. Re-index them contiguously from page 1
-	const PAGE_SIZE = 12;
-	const now = new Date().toISOString();
-	const updates = remainingTasks.map((task, index) => ({
-		id: task.id,
-		page_number: Math.floor(index / PAGE_SIZE) + 1,
-		position: index % PAGE_SIZE,
-		updated_at: now,
-	}));
-
-	// 4. Upsert the re-indexed positions back
-	for (const update of updates) {
-		const { error: updateError } = await supabase
-			.from("tasks")
-			.update({
-				page_number: update.page_number,
-				position: update.position,
-				updated_at: update.updated_at,
-			})
-			.eq("id", update.id);
-
-		if (updateError) throw updateError;
-	}
-
-	return data;
-}
-
 export async function markTaskDone(
 	taskId: string,
 	totalTimeMs: number = 0,
@@ -962,6 +905,11 @@ export async function markTaskDone(
 
 export async function startTask(taskId: string): Promise<AppState> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("app_state")
 		.update({
@@ -971,7 +919,7 @@ export async function startTask(taskId: string): Promise<AppState> {
 			current_session_ms: 0,
 			updated_at: new Date().toISOString(),
 		})
-		.eq("id", APP_STATE_ID)
+		.eq("user_id", user.id)
 		.select()
 		.single();
 
@@ -1046,9 +994,14 @@ export async function createPamphlet(
 	position: number,
 ): Promise<Pamphlet> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("pamphlets")
-		.insert({ name, color, position })
+		.insert({ name, color, position, user_id: user.id })
 		.select()
 		.single();
 
@@ -1194,6 +1147,10 @@ export async function addLoggedActivity(
 ): Promise<Task> {
 	const supabase = createClient();
 	const now = new Date().toISOString();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
 
 	const { data, error } = await supabase
 		.from("tasks")
@@ -1208,6 +1165,7 @@ export async function addLoggedActivity(
 			tag: tag ?? null,
 			note: note ?? null,
 			pamphlet_id: pamphletId ?? null,
+			user_id: user.id,
 		})
 		.select()
 		.single();

@@ -324,9 +324,18 @@ export function AutofocusApp() {
 			optimisticState?.activeTasks.find((t) => t.id === id) ?? null;
 		if (optimisticMatch) return optimisticMatch;
 
+		// Check current pamphlet tasks first (already cached, faster)
+		const pamphletMatch = displayedActiveTasks.find((t) => t.id === id) ?? null;
+		if (pamphletMatch) return pamphletMatch;
+
 		// Fall back to cross-pamphlet real data
 		return allActiveTasks.find((t) => t.id === id) ?? null;
-	}, [optimisticState, allActiveTasks, displayedAppState?.working_on_task_id]);
+	}, [
+		optimisticState,
+		displayedActiveTasks,
+		allActiveTasks,
+		displayedAppState?.working_on_task_id,
+	]);
 
 	// -------------------------------------------------------------------------
 	// Filtered Tasks Computation
