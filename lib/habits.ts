@@ -13,6 +13,7 @@ export interface Habit {
 	color: string | null; // hex for streak visualization
 	completions: string[]; // ISO date strings (YYYY-MM-DD), max 66 days kept
 	status: HabitStatus;
+	position: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -125,7 +126,7 @@ export async function getHabits(): Promise<Habit[]> {
 	const { data, error } = await supabase
 		.from("habits")
 		.select("*")
-		.order("created_at", { ascending: true });
+		.order("position", { ascending: true });
 	if (error) throw error;
 	return data || [];
 }
@@ -146,12 +147,36 @@ export async function updateHabit(
 }
 
 export async function addHabit(
-	habit: Omit<Habit, "id" | "created_at" | "updated_at" | "completions">,
+	habit: Omit<
+		Habit,
+		"id" | "created_at" | "updated_at" | "completions" | "position"
+	>,
 ): Promise<Habit> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
+	// Get current max position for this user
+	const { data: existing } = await supabase
+		.from("habits")
+		.select("position")
+		.eq("user_id", user.id)
+		.order("position", { ascending: false })
+		.limit(1);
+
+	const nextPosition =
+		existing && existing.length > 0 ? existing[0].position + 1 : 0;
+
 	const { data, error } = await supabase
 		.from("habits")
-		.insert({ ...habit, completions: [] })
+		.insert({
+			...habit,
+			completions: [],
+			user_id: user.id,
+			position: nextPosition,
+		})
 		.select()
 		.single();
 	if (error) throw error;
@@ -182,4 +207,20 @@ export async function toggleCompletion(
 	newCompletions = newCompletions.sort().slice(-MAX_HISTORY_DAYS);
 
 	return updateHabit(id, { completions: newCompletions });
+}
+
+export async function reorderHabits(
+	updates: Array<{ id: string; position: number }>,
+): Promise<void> {
+	const supabase = createClient();
+	for (const update of updates) {
+		const { error } = await supabase
+			.from("habits")
+			.update({
+				position: update.position,
+				updated_at: new Date().toISOString(),
+			})
+			.eq("id", update.id);
+		if (error) throw error;
+	}
 }

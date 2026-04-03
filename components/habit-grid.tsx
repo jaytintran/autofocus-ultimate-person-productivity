@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Flame, Check } from "lucide-react";
 import type { Habit } from "@/lib/habits";
 import {
@@ -30,14 +30,18 @@ function getWeekLabels(): string[] {
 interface HabitGridProps {
 	habits: Habit[];
 	onToggle: (id: string) => void;
+	onReorder: (draggedId: string, targetId: string) => void;
 }
 
-export function HabitGrid({ habits, onToggle }: HabitGridProps) {
+export function HabitGrid({ habits, onToggle, onReorder }: HabitGridProps) {
 	const today = getToday();
 	const activeHabits = useMemo(
 		() => habits.filter((h) => h.status === "active"),
 		[habits],
 	);
+
+	const [draggedId, setDraggedId] = useState<string | null>(null);
+	const [overId, setOverId] = useState<string | null>(null);
 
 	if (activeHabits.length === 0) {
 		return (
@@ -56,13 +60,40 @@ export function HabitGrid({ habits, onToggle }: HabitGridProps) {
 					const streak = getStreak(habit);
 					const weekly = getWeeklyProgress(habit);
 					const color = habit.color || "#8b9a6b";
+					const isDragging = draggedId === habit.id;
+					const isOver = overId === habit.id && draggedId !== habit.id;
 
 					return (
-						<button
+						<div
 							key={habit.id}
-							type="button"
-							onClick={() => onToggle(habit.id)}
-							className={`relative flex flex-col gap-2 rounded-2xl border p-3 text-left transition-all
+							draggable
+							onDragStart={(e) => {
+								setDraggedId(habit.id);
+								e.dataTransfer.effectAllowed = "move";
+							}}
+							onDragEnd={() => {
+								if (overId && overId !== draggedId) {
+									onReorder(draggedId!, overId);
+								}
+								setDraggedId(null);
+								setOverId(null);
+							}}
+							onDragOver={(e) => {
+								e.preventDefault();
+								e.dataTransfer.dropEffect = "move";
+								if (draggedId && habit.id !== draggedId) {
+									setOverId(habit.id);
+								}
+							}}
+							onDragLeave={() => {
+								if (overId === habit.id) setOverId(null);
+							}}
+							onDrop={(e) => {
+								e.preventDefault();
+							}}
+							className={`relative flex flex-col gap-2 rounded-2xl border p-3 text-left cursor-grab active:cursor-grabbing transition-all
+                ${isDragging ? "opacity-40" : "opacity-100"}
+                ${isOver ? "ring-2 ring-foreground scale-[1.02]" : ""}
                 ${
 									isDone
 										? "border-transparent"
@@ -77,14 +108,17 @@ export function HabitGrid({ habits, onToggle }: HabitGridProps) {
 							{/* Done checkmark */}
 							<div className="flex items-center justify-between">
 								<div
-									className={`w-5 h-5 rounded-full flex items-center justify-center transition-all flex-shrink-0
-                    ${isDone ? "opacity-100" : "border border-border opacity-40"}`}
+									onClick={(e) => {
+										e.stopPropagation();
+										onToggle(habit.id);
+									}}
+									className={`w-5 h-5 rounded-full flex items-center justify-center transition-all flex-shrink-0 cursor-pointer
+                    ${isDone ? "opacity-100" : "border border-border opacity-40 hover:opacity-70"}`}
 									style={isDone ? { backgroundColor: color } : {}}
 								>
 									{isDone && <Check className="w-3 h-3 text-white" />}
 								</div>
 
-								{/* Streak */}
 								{streak > 0 && (
 									<span className="flex items-center gap-0.5 text-[10px] text-amber-500">
 										<Flame className="w-3 h-3" />
@@ -152,7 +186,7 @@ export function HabitGrid({ habits, onToggle }: HabitGridProps) {
 									})}
 								</div>
 							</div>
-						</button>
+						</div>
 					);
 				})}
 			</div>

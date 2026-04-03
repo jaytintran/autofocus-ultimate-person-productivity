@@ -186,7 +186,11 @@ export function AutofocusApp() {
 
 	const [activeView, setActiveView] = useState<"tasks" | "completed">("tasks");
 	const [habitsViewActive, setHabitsViewActive] = useState(false);
-	const { habits, handleToggleToday: handleToggleHabit } = useHabits();
+	const {
+		habits,
+		handleToggleToday: handleToggleHabit,
+		handleReorder,
+	} = useHabits();
 
 	const [selectedTags, setSelectedTags] = useState<Set<TagId | "none">>(
 		new Set(),
@@ -1927,7 +1931,11 @@ export function AutofocusApp() {
 				{activeView === "tasks" &&
 					(habitsViewActive ? (
 						<div className="flex-1 overflow-y-auto min-h-0">
-							<HabitGrid habits={habits} onToggle={handleToggleHabit} />
+							<HabitGrid
+								habits={habits}
+								onToggle={handleToggleHabit}
+								onReorder={handleReorder}
+							/>
 						</div>
 					) : (
 						<TaskList

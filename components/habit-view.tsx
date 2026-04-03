@@ -45,6 +45,8 @@ import {
 	Users,
 } from "lucide-react";
 
+import { motion } from "framer-motion";
+
 // ─── Category Icons (reuse from project-view) ─────────────────────────────────
 
 const CATEGORY_ORDER = [
@@ -550,6 +552,7 @@ function AddHabitModal({
 				target_days: parseInt(targetDays) || 7,
 				color,
 				status: "active",
+				position: 0,
 			});
 			onClose();
 		} finally {
@@ -733,13 +736,18 @@ function DashboardView({
 	search,
 	onHabitClick,
 	onToggleToday,
+	onReorder,
 }: {
 	habits: Habit[];
 	search: string;
 	onHabitClick: (h: Habit) => void;
 	onToggleToday: (id: string) => void;
+	onReorder: (draggedId: string, targetId: string) => void;
 }) {
 	const today = getToday();
+
+	const [draggedId, setDraggedId] = useState<string | null>(null);
+	const [overId, setOverId] = useState<string | null>(null);
 
 	const stats = useMemo(() => {
 		const total = habits.length;
@@ -849,16 +857,42 @@ function DashboardView({
 					</div>
 					<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
 						{activeHabits.map((h) => (
-							<HabitCard
+							<div
 								key={h.id}
-								habit={h}
-								onClick={() => onHabitClick(h)}
-								onToggle={(e) => {
-									e.stopPropagation();
-									onToggleToday(h.id);
+								draggable
+								onDragStart={(e) => {
+									setDraggedId(h.id);
+									e.dataTransfer.effectAllowed = "move";
 								}}
-								showMiniCalendar
-							/>
+								onDragEnd={() => {
+									if (overId && overId !== draggedId)
+										onReorder(draggedId!, overId);
+									setDraggedId(null);
+									setOverId(null);
+								}}
+								onDragOver={(e) => {
+									e.preventDefault();
+									e.dataTransfer.dropEffect = "move";
+									if (draggedId && h.id !== draggedId) setOverId(h.id);
+								}}
+								onDragLeave={() => {
+									if (overId === h.id) setOverId(null);
+								}}
+								onDrop={(e) => e.preventDefault()}
+								className={`cursor-grab active:cursor-grabbing transition-all
+									${draggedId === h.id ? "opacity-40" : "opacity-100"}
+									${overId === h.id && draggedId !== h.id ? "ring-2 ring-foreground scale-[1.02] rounded-xl" : ""}`}
+							>
+								<HabitCard
+									habit={h}
+									onClick={() => onHabitClick(h)}
+									onToggle={(e) => {
+										e.stopPropagation();
+										onToggleToday(h.id);
+									}}
+									showMiniCalendar
+								/>
+							</div>
 						))}
 					</div>
 				</div>
@@ -875,13 +909,18 @@ function CategoryView({
 	search,
 	onHabitClick,
 	onToggleToday,
+	onReorder,
 }: {
 	category: string;
 	habits: Habit[];
 	search: string;
 	onHabitClick: (h: Habit) => void;
 	onToggleToday: (id: string) => void;
+	onReorder: (draggedId: string, targetId: string) => void;
 }) {
+	const [draggedId, setDraggedId] = useState<string | null>(null);
+	const [overId, setOverId] = useState<string | null>(null);
+
 	const filtered = useMemo(() => {
 		if (!search.trim()) return habits;
 		const q = search.toLowerCase();
@@ -936,16 +975,42 @@ function CategoryView({
 						</div>
 						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
 							{statusHabits.map((h) => (
-								<HabitCard
+								<div
 									key={h.id}
-									habit={h}
-									onClick={() => onHabitClick(h)}
-									onToggle={(e) => {
-										e.stopPropagation();
-										onToggleToday(h.id);
+									draggable
+									onDragStart={(e) => {
+										setDraggedId(h.id);
+										e.dataTransfer.effectAllowed = "move";
 									}}
-									showMiniCalendar
-								/>
+									onDragEnd={() => {
+										if (overId && overId !== draggedId)
+											onReorder(draggedId!, overId);
+										setDraggedId(null);
+										setOverId(null);
+									}}
+									onDragOver={(e) => {
+										e.preventDefault();
+										e.dataTransfer.dropEffect = "move";
+										if (draggedId && h.id !== draggedId) setOverId(h.id);
+									}}
+									onDragLeave={() => {
+										if (overId === h.id) setOverId(null);
+									}}
+									onDrop={(e) => e.preventDefault()}
+									className={`cursor-grab active:cursor-grabbing transition-all
+										${draggedId === h.id ? "opacity-40" : "opacity-100"}
+										${overId === h.id && draggedId !== h.id ? "ring-2 ring-foreground scale-[1.02] rounded-xl" : ""}`}
+								>
+									<HabitCard
+										habit={h}
+										onClick={() => onHabitClick(h)}
+										onToggle={(e) => {
+											e.stopPropagation();
+											onToggleToday(h.id);
+										}}
+										showMiniCalendar
+									/>
+								</div>
 							))}
 						</div>
 					</div>
@@ -1187,6 +1252,7 @@ export function HabitView() {
 		handleAdd,
 		handleDelete,
 		handleToggleToday,
+		handleReorder,
 	} = useHabits();
 
 	const [activeCategory, setActiveCategory] = useState("__dashboard__");
@@ -1268,6 +1334,7 @@ export function HabitView() {
 								search={debouncedSearch}
 								onHabitClick={(h) => setSelectedHabitId(h.id)}
 								onToggleToday={handleToggleToday}
+								onReorder={handleReorder}
 							/>
 						) : (
 							<CategoryView
@@ -1276,6 +1343,7 @@ export function HabitView() {
 								search={debouncedSearch}
 								onHabitClick={(h) => setSelectedHabitId(h.id)}
 								onToggleToday={handleToggleToday}
+								onReorder={handleReorder}
 							/>
 						)}
 					</div>

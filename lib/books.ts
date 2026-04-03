@@ -60,9 +60,14 @@ export async function addBook(
 	book: Omit<Book, "id" | "created_at" | "updated_at">,
 ): Promise<Book> {
 	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
 	const { data, error } = await supabase
 		.from("books")
-		.insert(book)
+		.insert({ ...book, user_id: user.id })
 		.select()
 		.single();
 	if (error) throw error;

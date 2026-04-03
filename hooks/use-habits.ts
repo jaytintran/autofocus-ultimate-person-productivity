@@ -7,6 +7,7 @@ import {
 	toggleCompletion,
 	getToday,
 	type Habit,
+	reorderHabits,
 } from "@/lib/habits";
 import { useCallback } from "react";
 import { useUserId } from "./use-user-id";
@@ -89,6 +90,42 @@ export function useHabits() {
 		[handleUpdate],
 	);
 
+	const handleReorder = useCallback(
+		async (draggedId: string, targetId: string) => {
+			const draggedIndex = habits.findIndex((h) => h.id === draggedId);
+			const targetIndex = habits.findIndex((h) => h.id === targetId);
+			if (
+				draggedIndex === -1 ||
+				targetIndex === -1 ||
+				draggedIndex === targetIndex
+			)
+				return;
+
+			// Reorder array
+			const reordered = [...habits];
+			const [dragged] = reordered.splice(draggedIndex, 1);
+			reordered.splice(targetIndex, 0, dragged);
+
+			// Assign new positions
+			const updates = reordered.map((h, i) => ({ id: h.id, position: i }));
+			const reorderedWithPositions = reordered.map((h, i) => ({
+				...h,
+				position: i,
+			}));
+
+			// Optimistic update
+			mutate(reorderedWithPositions, false);
+
+			try {
+				await reorderHabits(updates);
+				await mutate();
+			} catch {
+				await mutate(); // revert on error
+			}
+		},
+		[habits, mutate],
+	);
+
 	return {
 		habits,
 		isLoading,
@@ -97,5 +134,6 @@ export function useHabits() {
 		handleDelete,
 		handleToggleToday,
 		handleStatusChange,
+		handleReorder,
 	};
 }
