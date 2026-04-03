@@ -1,4 +1,4 @@
-import { AutofocusApp } from '@/components/autofocus/autofocus-app'
+import { AutofocusApp } from '@/components/autofocus-app'
 
 export default function Home() {
   return <AutofocusApp />

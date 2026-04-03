@@ -19,6 +19,7 @@ import {
 	RefreshCcw,
 	CopyCheck,
 	Copy,
+	X,
 } from "lucide-react";
 import {
 	TAG_DEFINITIONS,
@@ -347,7 +348,7 @@ const BulletIndicator = memo(function BulletIndicator({
 				onClick={onClick}
 				className="flex-shrink-0 text-amber-500 hover:text-amber-400 transition-colors leading-none mt-0.5"
 			>
-				<Info className="w-3.5 h-3.5" />
+				× {/* <X className="w-3.5 h-3.5" /> */}
 			</button>
 		);
 	}
@@ -414,7 +415,7 @@ const TaskNote = memo(function TaskNote({
 					: "text-amber-700 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300"
 			}`}
 		>
-			{isLog ? note : `🏆 ${note}`}
+			{isLog ? note : `🏆|📝 ${note}`}
 		</p>
 	);
 });
@@ -1729,7 +1730,7 @@ const DefaultView = memo(function DefaultView({
 															•
 														</span>
 													) : task.note ? (
-														<Info className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+														<X className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
 													) : (
 														<Check className="w-3.5 h-3.5 text-[#8b9a6b] flex-shrink-0" />
 													)}

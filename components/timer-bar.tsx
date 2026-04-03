@@ -31,8 +31,12 @@ interface TimerBarProps {
 	onPauseTimer: (sessionMs: number) => Promise<void>;
 	onResumeTimer: () => Promise<void>;
 	onStopTimer: (task: Task, sessionMs: number) => Promise<void>;
-	onCompleteTask: (task: Task, sessionMs: number) => Promise<void>;
 	onCancelTask: (task: Task, sessionMs: number) => Promise<void>;
+	onCompleteTask: (
+		task: Task,
+		sessionMs: number,
+		note: string,
+	) => Promise<void>;
 	onReenterTask: (task: Task) => Promise<void>;
 	onAddTask: (text: string, tag?: TagId | null) => Promise<Task | null>;
 	onStartTask: (task: Task) => Promise<void>;
@@ -503,6 +507,7 @@ export function TimerBar({
 		useState<OptimisticTimer>(null);
 
 	const [dueDatePickerOpen, setDueDatePickerOpen] = useState(false);
+	const [note, setNote] = useState("");
 
 	// Clear optimistic state when real appState catches up
 	useEffect(() => {
@@ -594,9 +599,10 @@ export function TimerBar({
 
 	const handleComplete = useCallback(async () => {
 		if (!workingTask) return;
-		// No optimistic state needed — parent handles this via achievement queue
-		await onCompleteTask(workingTask, sessionMs);
-	}, [workingTask, sessionMs, onCompleteTask]);
+		const committedNote = note;
+		setNote("");
+		await onCompleteTask(workingTask, sessionMs, committedNote);
+	}, [workingTask, sessionMs, note, onCompleteTask]);
 
 	const handleReenter = useCallback(async () => {
 		if (!workingTask) return;
@@ -784,6 +790,29 @@ export function TimerBar({
 				</div>
 
 				<div className="h-px w-[20px] bg-border" />
+
+				{/* Note input */}
+				<div className="flex items-center gap-2 mt-1">
+					<input
+						type="text"
+						value={note}
+						onChange={(e) => setNote(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && workingTask) handleComplete();
+						}}
+						placeholder="Achievement note (optional)..."
+						className="flex-1 bg-transparent border-none outline-none text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:text-foreground transition-colors"
+					/>
+					{note && (
+						<button
+							type="button"
+							onClick={() => setNote("")}
+							className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+						>
+							<X className="w-3 h-3" />
+						</button>
+					)}
+				</div>
 			</div>
 		</div>
 	);

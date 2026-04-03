@@ -68,12 +68,6 @@ export interface TaskReorderUpdate {
 	position: number;
 }
 
-export interface AchievementPending {
-	task: Task;
-	sessionMs: number;
-	type: "done" | "complete";
-}
-
 export interface Pamphlet {
 	id: string;
 	name: string;

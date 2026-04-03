@@ -19,7 +19,6 @@ import { PageNav } from "./page-nav";
 import { TaskList } from "./task-list";
 import { CompletedList } from "./completed-list";
 import { TaskInput } from "./task-input";
-import { AchievementChip } from "./achievement-chip";
 import { PamphletSwitcher } from "./pamphlet-switcher";
 
 // Store & Types
@@ -57,7 +56,6 @@ import type {
 	PagedTaskLike,
 	TaskPlacement,
 	TaskReorderUpdate,
-	AchievementPending,
 } from "@/lib/types";
 import { type CompletedSortKey, type CompletedViewType } from "./view-tabs";
 import { TAG_DEFINITIONS, TagId } from "@/lib/tags";
@@ -84,6 +82,8 @@ import { invalidatePamphletCache } from "@/lib/pamphlet-cache";
 
 import { usePamphlets } from "@/hooks/use-pamphlets";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useHabits } from "@/hooks/use-habits";
+import { HabitGrid } from "./habit-grid";
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -177,6 +177,9 @@ export function AutofocusApp() {
 	} = usePamphlets();
 
 	const [activeView, setActiveView] = useState<"tasks" | "completed">("tasks");
+	const [habitsViewActive, setHabitsViewActive] = useState(false);
+	const { habits, handleToggleToday: handleToggleHabit } = useHabits();
+
 	const [selectedTags, setSelectedTags] = useState<Set<TagId | "none">>(
 		new Set(),
 	);
@@ -218,13 +221,6 @@ export function AutofocusApp() {
 		new Map(),
 	);
 	const [hasInitializedFilter, setHasInitializedFilter] = useState(false);
-
-	// -------------------------------------------------------------------------
-	// State - Achievement Toast
-	// -------------------------------------------------------------------------
-	const [achievementQueue, setAchievementQueue] = useState<
-		AchievementPending[]
-	>([]);
 
 	// -------------------------------------------------------------------------
 	// Data Fetching
@@ -293,6 +289,11 @@ export function AutofocusApp() {
 	const isFilterActive = selectedTags.size > 0;
 	const isSearchOrFilterActive =
 		isFilterActive || !!debouncedSearchQuery.trim();
+
+	const activeHabitCount = useMemo(
+		() => habits.filter((h) => h.status === "active").length,
+		[habits],
+	);
 
 	const { data: allActiveTasks = [], mutate: mutateAllActive } = useSWR<Task[]>(
 		"all-active-tasks",
@@ -675,6 +676,57 @@ export function AutofocusApp() {
 		],
 	);
 
+	const commitDoneTask = useCallback(
+		async (task: Task, note: string) => {
+			if (!displayedAppState) return;
+			const now = new Date().toISOString();
+			if (note.trim()) await updateTask(task.id, { note: note.trim() });
+
+			const optimisticActiveTasks = displayedActiveTasks
+				.filter((t) => t.id !== task.id)
+				.sort(
+					(a, b) => a.page_number - b.page_number || a.position - b.position,
+				)
+				.map(
+					(t, index) =>
+						({
+							...t,
+							page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
+							position: index % DEFAULT_TASK_CAPACITY,
+							updated_at: now,
+						}) as Task,
+				);
+
+			const completedTask: Task = {
+				...task,
+				status: "completed",
+				completed_at: now,
+				updated_at: now,
+				note: note.trim() || task.note,
+			};
+
+			setPrefetchedTasks(new Map());
+
+			await runOptimisticUpdate(
+				{
+					activeTasks: optimisticActiveTasks,
+					completedTasks: [completedTask, ...displayedCompletedTasks],
+					appState: displayedAppState,
+					totalPages: getVisibleTotalPages(optimisticActiveTasks),
+				},
+				async () => {
+					await markTaskDone(task.id, task.total_time_ms, activePamphletId);
+				},
+			);
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			runOptimisticUpdate,
+		],
+	);
+
 	// -------------------------------------------------------------------------
 	// Callbacks - Task Actions
 	// -------------------------------------------------------------------------
@@ -868,12 +920,12 @@ export function AutofocusApp() {
 		],
 	);
 
-	const handleDoneTask = useCallback(async (task: Task) => {
-		setAchievementQueue((prev) => [
-			...prev,
-			{ task, sessionMs: 0, type: "done" },
-		]);
-	}, []);
+	const handleDoneTask = useCallback(
+		async (task: Task) => {
+			await commitDoneTask(task, "");
+		},
+		[commitDoneTask],
+	);
 
 	const handleDeleteTask = useCallback(
 		async (taskId: string) => {
@@ -1295,14 +1347,75 @@ export function AutofocusApp() {
 		],
 	);
 
-	const handleCompleteWorkingTask = useCallback(
-		async (task: Task, sessionMs: number) => {
-			setAchievementQueue((prev) => [
-				...prev,
-				{ task, sessionMs, type: "complete" },
-			]);
+	const commitCompleteWorkingTask = useCallback(
+		async (task: Task, sessionMs: number, note: string) => {
+			if (!displayedAppState) return;
+
+			const now = new Date().toISOString();
+			const totalTime = task.total_time_ms + sessionMs;
+
+			const optimisticActiveTasks = displayedActiveTasks
+				.filter((t) => t.id !== task.id)
+				.sort(
+					(a, b) => a.page_number - b.page_number || a.position - b.position,
+				)
+				.map(
+					(t, index) =>
+						({
+							...t,
+							page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
+							position: index % DEFAULT_TASK_CAPACITY,
+							updated_at: now,
+						}) as Task,
+				);
+
+			const completedTask: Task = {
+				...task,
+				status: "completed",
+				completed_at: now,
+				total_time_ms: totalTime,
+				updated_at: now,
+				note: note.trim() || task.note,
+			};
+
+			setPrefetchedTasks(new Map());
+
+			await runOptimisticUpdate(
+				{
+					activeTasks: optimisticActiveTasks,
+					completedTasks: [completedTask, ...displayedCompletedTasks],
+					appState: {
+						...displayedAppState,
+						working_on_task_id: null,
+						timer_state: "idle",
+						current_session_ms: 0,
+						session_start_time: null,
+						updated_at: now,
+					},
+					totalPages: getVisibleTotalPages(optimisticActiveTasks),
+				},
+				async () => {
+					if (note.trim()) {
+						await updateTask(task.id, { note: note.trim() });
+					}
+					await completeTask(task.id, totalTime);
+					await stopWorkingOnTask();
+				},
+			);
 		},
-		[],
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			runOptimisticUpdate,
+		],
+	);
+
+	const handleCompleteWorkingTask = useCallback(
+		async (task: Task, sessionMs: number, note: string) => {
+			await commitCompleteWorkingTask(task, sessionMs, note);
+		},
+		[commitCompleteWorkingTask],
 	);
 
 	const handleCancelWorkingTask = useCallback(
@@ -1609,152 +1722,6 @@ export function AutofocusApp() {
 	}, [isLoadingMore, hasMoreCompleted, activePamphletId, fetchCompletedTasks]);
 
 	// -------------------------------------------------------------------------
-	// Callbacks - Achievement Toast
-	// -------------------------------------------------------------------------
-	const commitDoneTask = useCallback(
-		async (task: Task, note: string) => {
-			if (!displayedAppState) return;
-			const now = new Date().toISOString();
-			if (note.trim()) await updateTask(task.id, { note: note.trim() });
-
-			const optimisticActiveTasks = displayedActiveTasks
-				.filter((t) => t.id !== task.id)
-				.sort(
-					(a, b) => a.page_number - b.page_number || a.position - b.position,
-				)
-				.map(
-					(t, index) =>
-						({
-							...t,
-							page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
-							position: index % DEFAULT_TASK_CAPACITY,
-							updated_at: now,
-						}) as Task,
-				);
-
-			const completedTask: Task = {
-				...task,
-				status: "completed",
-				completed_at: now,
-				updated_at: now,
-				note: note.trim() || task.note,
-			};
-
-			setPrefetchedTasks(new Map());
-
-			await runOptimisticUpdate(
-				{
-					activeTasks: optimisticActiveTasks,
-					completedTasks: [completedTask, ...displayedCompletedTasks],
-					appState: displayedAppState,
-					totalPages: getVisibleTotalPages(optimisticActiveTasks),
-				},
-				async () => {
-					await markTaskDone(task.id, task.total_time_ms, activePamphletId);
-				},
-			);
-		},
-		[
-			displayedActiveTasks,
-			displayedAppState,
-			displayedCompletedTasks,
-			runOptimisticUpdate,
-		],
-	);
-
-	const commitCompleteWorkingTask = useCallback(
-		async (task: Task, sessionMs: number, note: string) => {
-			if (!displayedAppState) return;
-
-			const now = new Date().toISOString();
-			const totalTime = task.total_time_ms + sessionMs;
-
-			const optimisticActiveTasks = displayedActiveTasks
-				.filter((t) => t.id !== task.id)
-				.sort(
-					(a, b) => a.page_number - b.page_number || a.position - b.position,
-				)
-				.map(
-					(t, index) =>
-						({
-							...t,
-							page_number: Math.floor(index / DEFAULT_TASK_CAPACITY) + 1,
-							position: index % DEFAULT_TASK_CAPACITY,
-							updated_at: now,
-						}) as Task,
-				);
-
-			const completedTask: Task = {
-				...task,
-				status: "completed",
-				completed_at: now,
-				total_time_ms: totalTime,
-				updated_at: now,
-				note: note.trim() || task.note,
-			};
-
-			setPrefetchedTasks(new Map());
-
-			await runOptimisticUpdate(
-				{
-					activeTasks: optimisticActiveTasks,
-					completedTasks: [completedTask, ...displayedCompletedTasks],
-					appState: {
-						...displayedAppState,
-						working_on_task_id: null,
-						timer_state: "idle",
-						current_session_ms: 0,
-						session_start_time: null,
-						updated_at: now,
-					},
-					totalPages: getVisibleTotalPages(optimisticActiveTasks),
-				},
-				async () => {
-					if (note.trim()) {
-						await updateTask(task.id, { note: note.trim() });
-					}
-					await completeTask(task.id, totalTime);
-					await stopWorkingOnTask();
-				},
-			);
-		},
-		[
-			displayedActiveTasks,
-			displayedAppState,
-			displayedCompletedTasks,
-			runOptimisticUpdate,
-		],
-	);
-
-	// Chip: commit the front item with a note and pop it from the queue
-	const handleChipCommit = useCallback(
-		async (item: AchievementPending, note: string) => {
-			setAchievementQueue((prev) => prev.filter((_, i) => i !== 0));
-			if (item.type === "done") await commitDoneTask(item.task, note);
-			else await commitCompleteWorkingTask(item.task, item.sessionMs, note);
-		},
-		[commitDoneTask, commitCompleteWorkingTask],
-	);
-
-	// Chip: 5 s elapsed — commit entire remaining queue with empty notes
-	const handleChipDismissAll = useCallback(
-		async (remaining: AchievementPending[]) => {
-			setAchievementQueue([]);
-			for (const item of remaining) {
-				try {
-					if (item.type === "done") await commitDoneTask(item.task, "");
-					else await commitCompleteWorkingTask(item.task, item.sessionMs, "");
-				} catch (error: any) {
-					// Task already completed — skip silently
-					if (error?.code === "PGRST116") continue;
-					throw error;
-				}
-			}
-		},
-		[commitDoneTask, commitCompleteWorkingTask],
-	);
-
-	// -------------------------------------------------------------------------
 	// Callbacks - Task Updates
 	// -------------------------------------------------------------------------
 	const handleUpdateTaskText = useCallback(
@@ -1940,34 +1907,42 @@ export function AutofocusApp() {
 					completedTasksWithNotes={completedTasksWithNotes}
 					onRefreshAchievements={mutateAchievements}
 					pamphlets={pamphlets}
+					habitsViewActive={habitsViewActive}
+					onToggleHabitsView={() => setHabitsViewActive((v) => !v)}
+					activeHabitCount={activeHabitCount}
 				/>
 			)}
 
 			<main className="flex-1 flex flex-col min-h-0 pb-24">
-				{activeView === "tasks" && (
-					<TaskList
-						tasks={tasksForCurrentPage}
-						allTasks={displayedActiveTasks}
-						workingTaskId={displayedAppState.working_on_task_id}
-						selectedTags={selectedTags}
-						onRefresh={refreshAll}
-						onStartTask={handleStartTask}
-						onDoneTask={handleDoneTask}
-						onDeleteTask={handleDeleteTask}
-						onReenterTask={handleReenterTask}
-						onReorderTasks={handleReorderTasks}
-						onSwitchTask={handleSwitchTask}
-						onVisibleCapacityChange={handleVisibleTaskCapacityChange}
-						onPumpTask={handlePumpTask}
-						onSinkTask={handleSinkTask}
-						visibleTotalPages={getVisibleTotalPages(displayedActiveTasks)}
-						disableSwipeForWorkingTask={true}
-						pamphlets={pamphlets}
-						activePamphletId={activePamphletId}
-						onMoveTask={handleMoveTask}
-						onUpdateDueDate={handleUpdateTaskDueDate}
-					/>
-				)}
+				{activeView === "tasks" &&
+					(habitsViewActive ? (
+						<div className="flex-1 overflow-y-auto min-h-0">
+							<HabitGrid habits={habits} onToggle={handleToggleHabit} />
+						</div>
+					) : (
+						<TaskList
+							tasks={tasksForCurrentPage}
+							allTasks={displayedActiveTasks}
+							workingTaskId={displayedAppState.working_on_task_id}
+							selectedTags={selectedTags}
+							onRefresh={refreshAll}
+							onStartTask={handleStartTask}
+							onDoneTask={handleDoneTask}
+							onDeleteTask={handleDeleteTask}
+							onReenterTask={handleReenterTask}
+							onReorderTasks={handleReorderTasks}
+							onSwitchTask={handleSwitchTask}
+							onVisibleCapacityChange={handleVisibleTaskCapacityChange}
+							onPumpTask={handlePumpTask}
+							onSinkTask={handleSinkTask}
+							visibleTotalPages={getVisibleTotalPages(displayedActiveTasks)}
+							disableSwipeForWorkingTask={true}
+							pamphlets={pamphlets}
+							activePamphletId={activePamphletId}
+							onMoveTask={handleMoveTask}
+							onUpdateDueDate={handleUpdateTaskDueDate}
+						/>
+					))}
 				{activeView === "completed" && (
 					<CompletedList
 						tasks={filteredCompletedTasks}
@@ -1992,13 +1967,6 @@ export function AutofocusApp() {
 
 			{activeView === "tasks" && (
 				<>
-					<AchievementChip
-						queue={achievementQueue}
-						onCommit={handleChipCommit}
-						onDismissAll={handleChipDismissAll}
-						pamphlets={pamphlets}
-					/>
-
 					<TaskInput onAddTask={handleAddTask} selectedTags={selectedTags} />
 				</>
 			)}

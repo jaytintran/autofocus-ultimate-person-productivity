@@ -16,6 +16,7 @@ import {
 	X,
 	Trophy,
 	RefreshCw,
+	Flame,
 } from "lucide-react";
 import {
 	Dialog,
@@ -127,7 +128,9 @@ function SecondBrainButton() {
 						</div>
 					</div>
 				)}
+
 				<div className="flex gap-2">
+					{/* THOUGHTS CAPTURER */}
 					<Tooltip.Root>
 						<Tooltip.Trigger asChild>
 							<Link href={THOUGHTS_CAPTURER.href}>
@@ -147,6 +150,7 @@ function SecondBrainButton() {
 						</Tooltip.Portal>
 					</Tooltip.Root>
 
+					{/* SECOND BRAIN */}
 					<Tooltip.Root>
 						<Tooltip.Trigger asChild>
 							<button
@@ -195,6 +199,9 @@ interface PageNavProps {
 	}>;
 	onRefreshAchievements: () => void;
 	pamphlets: Pamphlet[];
+	habitsViewActive: boolean;
+	onToggleHabitsView: () => void;
+	activeHabitCount: number;
 }
 
 export function PageNav({
@@ -209,6 +216,9 @@ export function PageNav({
 	completedTasksWithNotes,
 	onRefreshAchievements,
 	pamphlets,
+	habitsViewActive,
+	onToggleHabitsView,
+	activeHabitCount,
 }: PageNavProps) {
 	const [searchOpen, setSearchOpen] = useState(false);
 	const searchInputRef = useRef<HTMLInputElement>(null);
@@ -312,6 +322,37 @@ export function PageNav({
 
 					{/* Achievements Button */}
 					<Tooltip.Provider>
+						{/* Habits toggle button */}
+						<Tooltip.Root>
+							<Tooltip.Trigger asChild>
+								<button
+									onClick={onToggleHabitsView}
+									className={`relative text-xs border rounded-full p-1.75 transition-colors
+        						${
+											habitsViewActive
+												? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+												: "border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+										}`}
+								>
+									<Flame className="w-4 h-4" />
+									{activeHabitCount > 0 && (
+										<span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-0.5 flex items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white leading-none">
+											{activeHabitCount}
+										</span>
+									)}
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Portal>
+								<Tooltip.Content
+									side="top"
+									className="bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-md"
+								>
+									Today's Habits
+									<Tooltip.Arrow className="fill-foreground" />
+								</Tooltip.Content>
+							</Tooltip.Portal>
+						</Tooltip.Root>
+
 						<Tooltip.Root>
 							<Tooltip.Trigger asChild>
 								<button
