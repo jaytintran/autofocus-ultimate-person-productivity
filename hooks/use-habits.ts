@@ -9,13 +9,18 @@ import {
 	type Habit,
 } from "@/lib/habits";
 import { useCallback } from "react";
+import { useUserId } from "./use-user-id";
 
 export function useHabits() {
+	const userId = useUserId();
+
 	const {
 		data: habits = [],
 		mutate,
 		isLoading,
-	} = useSWR<Habit[]>("habits", getHabits, { refreshInterval: 0 });
+	} = useSWR<Habit[]>(userId ? `habits-${userId}` : null, getHabits, {
+		refreshInterval: 0,
+	});
 
 	const handleUpdate = useCallback(
 		async (id: string, updates: Partial<Habit>) => {

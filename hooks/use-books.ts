@@ -7,14 +7,18 @@ import {
 	type Book,
 } from "@/lib/books";
 import { useCallback } from "react";
+import { useUserId } from "./use-user-id";
 
 export function useBooks() {
+	const userId = useUserId();
+
 	const {
 		data: books = [],
 		mutate,
 		isLoading,
-	} = useSWR<Book[]>("books", getBooks, { refreshInterval: 0 });
-
+	} = useSWR<Book[]>(userId ? `books-${userId}` : null, getBooks, {
+		refreshInterval: 0,
+	});
 	const handleUpdate = useCallback(
 		async (id: string, updates: Partial<Book>) => {
 			// Optimistic

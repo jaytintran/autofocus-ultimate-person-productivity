@@ -22,22 +22,24 @@ import {
 import type { Task, Pamphlet, PamphletColor } from "@/lib/types";
 import { reorderPamphlets } from "@/lib/store";
 
+import { useUserId } from "./use-user-id";
+
 export function usePamphlets() {
+	const userId = useUserId();
+
 	// -------------------------------------------------------------------------
 	// Pamphlet list
 	// -------------------------------------------------------------------------
 	const { data: pamphlets = [], mutate: mutatePamphlets } = useSWR<Pamphlet[]>(
-		"pamphlets",
+		userId ? `pamphlets-${userId}` : null,
 		getPamphlets,
 		{
 			refreshInterval: 0,
 			onSuccess: (data) => {
 				if (!data.length) return;
-				// On first load, resolve active pamphlet
 				const stored = getActivePamphletId();
 				const valid = data.find((p) => p.id === stored);
 				if (!valid) {
-					setActivePamphletId(data[0].id);
 					setActivePamphletId(data[0].id);
 					_setActivePamphletId(data[0].id);
 				}

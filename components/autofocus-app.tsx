@@ -4,6 +4,8 @@
 // IMPORTS
 // =============================================================================
 
+import { useUserId } from "@/hooks/use-user-id";
+
 // React & Core
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
@@ -84,6 +86,7 @@ import { usePamphlets } from "@/hooks/use-pamphlets";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useHabits } from "@/hooks/use-habits";
 import { HabitGrid } from "./habit-grid";
+import { createClient } from "@/lib/supabase/client";
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -157,6 +160,11 @@ function buildReorderedActiveTasks(
 // =============================================================================
 
 export function AutofocusApp() {
+	// -------------------------------------------------------------------------
+	// State - User
+	// -------------------------------------------------------------------------
+	const userId = useUserId();
+
 	// -------------------------------------------------------------------------
 	// State - View & Filter
 	// -------------------------------------------------------------------------
@@ -255,7 +263,7 @@ export function AutofocusApp() {
 	}, [activePamphletId, mutateCompleted]);
 
 	const { data: appState, mutate: mutateAppState } = useSWR<AppState>(
-		"app-state",
+		userId ? `app-state-${userId}` : null,
 		getAppState,
 		{ refreshInterval: 1000 },
 	);
@@ -275,7 +283,9 @@ export function AutofocusApp() {
 
 	const { data: achievementTasks = [], mutate: mutateAchievements } = useSWR<
 		Task[]
-	>("achievement-tasks", getTasksWithNotes, { refreshInterval: 0 });
+	>(userId ? `achievement-tasks-${userId}` : null, getTasksWithNotes, {
+		refreshInterval: 0,
+	});
 
 	// -------------------------------------------------------------------------
 	// Derived State
@@ -296,7 +306,7 @@ export function AutofocusApp() {
 	);
 
 	const { data: allActiveTasks = [], mutate: mutateAllActive } = useSWR<Task[]>(
-		"all-active-tasks",
+		userId ? `all-active-tasks-${userId}` : null,
 		getActiveTasks,
 		{ refreshInterval: 0 },
 	);

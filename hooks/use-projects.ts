@@ -7,13 +7,18 @@ import {
 	type Project,
 } from "@/lib/projects";
 import { useCallback } from "react";
+import { useUserId } from "./use-user-id";
 
 export function useProjects() {
+	const userId = useUserId();
+
 	const {
 		data: projects = [],
 		mutate,
 		isLoading,
-	} = useSWR<Project[]>("projects", getProjects, { refreshInterval: 0 });
+	} = useSWR<Project[]>(userId ? `projects-${userId}` : null, getProjects, {
+		refreshInterval: 0,
+	});
 
 	const handleUpdate = useCallback(
 		async (id: string, updates: Partial<Project>) => {
