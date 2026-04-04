@@ -20,6 +20,8 @@ import {
 	CopyCheck,
 	Copy,
 	X,
+	ChevronDown,
+	ChevronRight,
 } from "lucide-react";
 import {
 	TAG_DEFINITIONS,
@@ -42,6 +44,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { useCollapsedTimeBlocks } from "@/hooks/use-collapsed-time-blocks";
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -119,6 +122,9 @@ interface TimeBlockSectionProps {
 	onRevertTask: (task: Task) => void;
 	onDeleteTask: (id: string) => void;
 	onUpdateTag: (taskId: string, tag: TagId | null) => void;
+	blockKey: string; // ADD
+	isCollapsed: boolean; // ADD
+	onToggle: (key: string) => void; // ADD
 }
 
 interface DayGroupProps {
@@ -352,6 +358,19 @@ function getTimePeriodIconColor(
 	}
 }
 
+function getTimePeriodBadgeStyle(
+	period: "morning" | "afternoon" | "evening",
+): string {
+	switch (period) {
+		case "morning":
+			return "border-sky-500/30 text-sky-500 bg-sky-500/5";
+		case "afternoon":
+			return "border-amber-500/30 text-amber-500 bg-amber-500/5";
+		case "evening":
+			return "border-indigo-400/30 text-indigo-400 bg-indigo-400/5";
+	}
+}
+
 // =============================================================================
 // MEMOIZED SUB-COMPONENTS
 // =============================================================================
@@ -429,7 +448,7 @@ const TaskMetadata = memo(function TaskMetadata({
 	);
 });
 
-const TaskNote = memo(function TaskNote({
+const TaskAchievementNote = memo(function TaskNote({
 	note,
 	isLog,
 	onClick,
@@ -447,8 +466,78 @@ const TaskNote = memo(function TaskNote({
 					: "text-amber-700 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300"
 			}`}
 		>
-			{isLog ? note : `🏆|📝 ${note}`}
+			{isLog ? note : `🏆 ${note}`}
 		</p>
+	);
+});
+
+function parseNoteLines(note: string): {
+	achievements: string[];
+	logs: string[];
+} {
+	const lines = note.split("\n").filter((l) => l.trim());
+	const achievements = lines.filter((l) => !l.startsWith("•"));
+	const logs = lines.filter((l) => l.startsWith("•"));
+	return { achievements, logs };
+}
+
+const TaskSessionLogNote = memo(function TaskSessionLogNote({
+	note,
+}: {
+	note: string;
+}) {
+	const [expanded, setExpanded] = useState(false);
+	const { achievements, logs } = parseNoteLines(note);
+	const isCollapsible = logs.length >= 1;
+
+	return (
+		<div className="mt-0.5">
+			{/* Achievement section — always visible */}
+			{achievements.length > 0 && (
+				<div className="mt-1 space-y-0.5">
+					{achievements.map((line, i) => (
+						<p
+							key={i}
+							className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug"
+						>
+							🏆 {line}
+						</p>
+					))}
+				</div>
+			)}
+
+			{/* Log section */}
+			{logs.length > 0 && (
+				<div className="mt-0.5">
+					<button
+						type="button"
+						onClick={() => setExpanded((v) => !v)}
+						className="flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors border-t mt-3 border-border w-1/5"
+					>
+						<span className="pr-2 py-2">
+							{expanded ? (
+								<ChevronDown className="w-3 h-3" />
+							) : (
+								<ChevronRight className="w-3 h-3" />
+							)}
+						</span>
+						<span className="text-[10px]">Session Log</span>
+					</button>
+					{expanded && (
+						<div className="mt-1 space-y-0.5 pl-1">
+							{logs.map((line, i) => (
+								<p
+									key={i}
+									className="text-[11px] text-muted-foreground/70 leading-snug"
+								>
+									{line}
+								</p>
+							))}
+						</div>
+					)}
+				</div>
+			)}
+		</div>
 	);
 });
 
@@ -463,6 +552,12 @@ const BulletRow = memo(function BulletRow({
 	onUpdateTag,
 }: TaskItemProps) {
 	const isLog = task.source === "log";
+
+	// Note types:
+	// session log — multi-line, logged in real-time during a work session, timestamped, granular
+	// achievement — single-line, written at completion, one reflection/summary of what was done
+	const isMultiLineNote =
+		!!task.note && (task.note.includes("\n") || task.note.startsWith("•"));
 
 	const handleSelect = useCallback(() => {
 		onSelect(task.id);
@@ -513,9 +608,30 @@ const BulletRow = memo(function BulletRow({
 						{task.text}
 					</span>
 
-					{task.note && (
-						<TaskNote note={task.note} isLog={isLog} onClick={handleSelect} />
-					)}
+					{task.note &&
+						/* 
+							
+							Multi-line Note -> Logs
+							- It is logged in real-time during a work session, timestamped, granular.
+							- It's a session log or just log.
+
+						*/
+						(isMultiLineNote ? (
+							<TaskSessionLogNote note={task.note} />
+						) : (
+							/* 
+							
+							Single-line Note -> Achievement
+							- It's written at completion, one reflection, summary of what was done.
+							- It's an achievement note or just achievement.
+
+							*/
+							<TaskAchievementNote
+								note={task.note}
+								isLog={isLog}
+								onClick={handleSelect}
+							/>
+						))}
 				</div>
 			</div>
 		</li>
@@ -531,35 +647,49 @@ const TimeBlockSection = memo(function TimeBlockSection({
 	onRevertTask,
 	onDeleteTask,
 	onUpdateTag,
+	blockKey,
+	isCollapsed,
+	onToggle,
 }: TimeBlockSectionProps) {
 	const Icon = timeBlock.icon;
 
 	return (
 		<div className="mb-3">
-			<div className="flex items-center gap-1.5 mb-1">
+			<button
+				type="button"
+				onClick={() => onToggle(blockKey)}
+				className={`inline-flex items-center gap-1.5 mb-1 border w-fit p-1 px-2 rounded-[5px] transition-opacity ${getTimePeriodBadgeStyle(timeBlock.period)} ${isCollapsed ? "opacity-50" : ""}`}
+			>
 				<Icon
 					className={`w-3 h-3 ${getTimePeriodIconColor(timeBlock.period)}`}
 				/>
-				<span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider">
+				<span className="text-[10px] uppercase tracking-wider">
 					{timeBlock.period}
 				</span>
-			</div>
+				{isCollapsed && (
+					<span className="text-[10px] ml-1 opacity-60">
+						({timeBlock.tasks.length})
+					</span>
+				)}
+			</button>
 
-			<ul className="space-y-0">
-				{timeBlock.tasks.map((task) => (
-					<BulletRow
-						key={task.id}
-						task={task}
-						isLoading={task.id === loadingTaskId}
-						loadingTagTaskId={loadingTagTaskId}
-						showDeleteConfirm={showDeleteConfirm}
-						onSelect={onSelectTask}
-						onRevert={onRevertTask}
-						onDelete={onDeleteTask}
-						onUpdateTag={onUpdateTag}
-					/>
-				))}
-			</ul>
+			{!isCollapsed && (
+				<ul className="space-y-0">
+					{timeBlock.tasks.map((task) => (
+						<BulletRow
+							key={task.id}
+							task={task}
+							isLoading={task.id === loadingTaskId}
+							loadingTagTaskId={loadingTagTaskId}
+							showDeleteConfirm={showDeleteConfirm}
+							onSelect={onSelectTask}
+							onRevert={onRevertTask}
+							onDelete={onDeleteTask}
+							onUpdateTag={onUpdateTag}
+						/>
+					))}
+				</ul>
+			)}
 		</div>
 	);
 });
@@ -580,10 +710,12 @@ const DayGroup = memo(function DayGroup({
 		onExportDay(group);
 	}, [onExportDay, group]);
 
+	const { isCollapsed, toggle } = useCollapsedTimeBlocks();
+
 	return (
 		<div className="mb-6">
-			<div className="flex items-center gap-3 mb-2">
-				<span className="text-xs font-semibold tracking-widest uppercase text-muted-foreground/70">
+			<div className="flex items-center gap-3 mb-4">
+				<span className="text-xs font-semibold tracking-widest uppercase text-foreground">
 					{group.dateLabel}
 				</span>
 				<div className="flex-1 h-px bg-border/50" />
@@ -601,19 +733,25 @@ const DayGroup = memo(function DayGroup({
 				</button>
 			</div>
 
-			{group.timeBlocks.map((timeBlock) => (
-				<TimeBlockSection
-					key={timeBlock.period}
-					timeBlock={timeBlock}
-					loadingTaskId={loadingTaskId}
-					loadingTagTaskId={loadingTagTaskId}
-					showDeleteConfirm={showDeleteConfirm}
-					onSelectTask={onSelectTask}
-					onRevertTask={onRevertTask}
-					onDeleteTask={onDeleteTask}
-					onUpdateTag={onUpdateTag}
-				/>
-			))}
+			{group.timeBlocks.map((timeBlock) => {
+				const blockKey = `${timeBlock.period}-${group.dateKey}`;
+				return (
+					<TimeBlockSection
+						key={timeBlock.period}
+						timeBlock={timeBlock}
+						loadingTaskId={loadingTaskId}
+						loadingTagTaskId={loadingTagTaskId}
+						showDeleteConfirm={showDeleteConfirm}
+						onSelectTask={onSelectTask}
+						onRevertTask={onRevertTask}
+						onDeleteTask={onDeleteTask}
+						onUpdateTag={onUpdateTag}
+						blockKey={blockKey}
+						isCollapsed={isCollapsed(blockKey)}
+						onToggle={toggle}
+					/>
+				);
+			})}
 		</div>
 	);
 });

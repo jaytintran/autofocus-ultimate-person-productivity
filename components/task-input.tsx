@@ -338,7 +338,7 @@ export function TaskInput({ onAddTask, selectedTags }: TaskInputProps) {
 					value={text}
 					onChange={handleTextChange}
 					onKeyDown={handleKeyDown}
-					placeholder="Add a task... or # to tag, ! for due date, > to link tracker"
+					placeholder="Add a task. Use # to tag, ! for due date..."
 					className="flex-1 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm"
 				/>
 

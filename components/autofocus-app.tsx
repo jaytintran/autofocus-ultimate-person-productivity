@@ -1162,6 +1162,14 @@ export function AutofocusApp() {
 		[mutateAllActive],
 	);
 
+	const handleUpdateWorkingTaskTag = useCallback(
+		async (taskId: string, tag: TagId | null) => {
+			await updateTaskTag(taskId, tag);
+			await mutateAllActive();
+		},
+		[mutateAllActive],
+	);
+
 	const handleUpdateTaskDueDate = useCallback(
 		async (taskId: string, dueDate: string | null) => {
 			await updateTask(taskId, { due_date: dueDate });
@@ -1495,7 +1503,7 @@ export function AutofocusApp() {
 	);
 
 	const handlePanelReenterTask = useCallback(
-		async (task: Task) => {
+		async (task: Task, note?: string) => {
 			if (!displayedAppState) return;
 
 			const now = new Date().toISOString();
@@ -1560,6 +1568,9 @@ export function AutofocusApp() {
 					totalPages: getVisibleTotalPages(optimisticActiveTasks),
 				},
 				async () => {
+					if (note?.trim()) {
+						await updateTask(task.id, { note: note.trim() });
+					}
 					await reenterTask(
 						task.id,
 						task.text,
@@ -1901,6 +1912,7 @@ export function AutofocusApp() {
 				activeTasks={displayedActiveTasks}
 				pamphlets={pamphlets}
 				onUpdateDueDate={handleUpdateWorkingTaskDueDate}
+				onUpdateTaskTag={handleUpdateWorkingTaskTag}
 			/>
 
 			<ViewTabs

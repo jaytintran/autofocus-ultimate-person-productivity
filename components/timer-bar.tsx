@@ -10,6 +10,8 @@ import {
 	X,
 	Send,
 	KeyboardIcon,
+	ClipboardList,
+	Trophy,
 } from "lucide-react";
 import type { Task, AppState, Pamphlet } from "@/lib/types";
 import { TAG_DEFINITIONS, getTagDefinition, type TagId } from "@/lib/tags";
@@ -19,10 +21,18 @@ import {
 	parseDueDateShortcut,
 } from "@/lib/utils/due-date-parser";
 import { PAMPHLET_COLORS } from "@/lib/pamphlet-colors";
+import { TagPill } from "./tag-pill";
 
 // =============================================================================
 // TYPES
 // =============================================================================
+
+interface NoteEntry {
+	id: string;
+	elapsedMs: number;
+	text: string;
+	type: "log" | "achievement";
+}
 
 interface TimerBarProps {
 	appState: AppState;
@@ -37,7 +47,7 @@ interface TimerBarProps {
 		sessionMs: number,
 		note: string,
 	) => Promise<void>;
-	onReenterTask: (task: Task) => Promise<void>;
+	onReenterTask: (task: Task, note?: string) => Promise<void>;
 	onAddTask: (text: string, tag?: TagId | null) => Promise<Task | null>;
 	onStartTask: (task: Task) => Promise<void>;
 	activeTasks: Task[];
@@ -48,6 +58,7 @@ interface TimerBarProps {
 	) => Promise<Task | null>;
 	pamphlets: Pamphlet[];
 	onUpdateDueDate: (taskId: string, dueDate: string | null) => Promise<void>;
+	onUpdateTaskTag: (taskId: string, tag: TagId | null) => Promise<void>;
 }
 
 // =============================================================================
@@ -498,6 +509,7 @@ export function TimerBar({
 	activeTasks,
 	pamphlets,
 	onUpdateDueDate,
+	onUpdateTaskTag,
 }: TimerBarProps) {
 	// ── Optimistic timer state ─────────────────────────────────────────────────
 	// Instead of isLoading blocking everything, we track optimistic timer state
@@ -525,11 +537,20 @@ export function TimerBar({
 	const sessionStartRef = useRef<number | null>(null);
 	const baseSessionMsRef = useRef(0);
 
+	const [noteEntries, setNoteEntries] = useState<NoteEntry[]>([]);
+	const [noteInput, setNoteInput] = useState("");
+	const [noteType, setNoteType] = useState<"log" | "achievement">("log");
+
+	const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+	const [editingNoteText, setEditingNoteText] = useState("");
+
 	useEffect(() => {
 		if (!workingTask) {
 			setSessionMs(0);
 			sessionStartRef.current = null;
 			baseSessionMsRef.current = 0;
+			setNoteEntries([]); // ADD
+			setNoteInput(""); // ADD
 			return;
 		}
 
@@ -599,20 +620,65 @@ export function TimerBar({
 
 	const handleComplete = useCallback(async () => {
 		if (!workingTask) return;
-		const committedNote = note;
+
+		let combinedNote = "";
+		if (noteEntries.length > 0) {
+			const achievements = noteEntries
+				.filter((e) => e.type === "achievement")
+				.map((e) => e.text);
+			const logs = noteEntries
+				.filter((e) => e.type === "log")
+				.map((e) => `• At ${formatTimeCompact(e.elapsedMs)}  ${e.text}`);
+			combinedNote = [...achievements, ...logs].join("\n");
+		} else {
+			combinedNote = note;
+		}
+
 		setNote("");
-		await onCompleteTask(workingTask, sessionMs, committedNote);
-	}, [workingTask, sessionMs, note, onCompleteTask]);
+		setNoteEntries([]);
+		setNoteType("log");
+		await onCompleteTask(workingTask, sessionMs, combinedNote);
+	}, [workingTask, sessionMs, note, noteEntries, onCompleteTask]);
 
 	const handleReenter = useCallback(async () => {
 		if (!workingTask) return;
-		await onReenterTask(workingTask);
-	}, [workingTask, onReenterTask]);
+		const combinedNote =
+			noteEntries.length > 0
+				? [
+						...noteEntries
+							.filter((e) => e.type === "achievement")
+							.map((e) => e.text),
+						...noteEntries
+							.filter((e) => e.type === "log")
+							.map((e) => `• At ${formatTimeCompact(e.elapsedMs)}  ${e.text}`),
+					].join("\n")
+				: note;
+		setNote("");
+		setNoteEntries([]);
+		setNoteType("log");
+		await onReenterTask(workingTask, combinedNote);
+	}, [workingTask, noteEntries, note, onReenterTask]);
 
 	const handleCancelTask = useCallback(async () => {
 		if (!workingTask) return;
 		await onCancelTask(workingTask, sessionMs);
 	}, [workingTask, sessionMs, onCancelTask]);
+
+	const handleNoteSubmit = useCallback(() => {
+		const trimmed = noteInput.trim();
+		if (!trimmed) return;
+		const elapsed = (workingTask?.total_time_ms ?? 0) + sessionMs;
+		setNoteEntries((prev) => [
+			...prev,
+			{
+				id: crypto.randomUUID(),
+				elapsedMs: elapsed,
+				text: trimmed,
+				type: noteType,
+			},
+		]);
+		setNoteInput("");
+	}, [noteInput, workingTask, sessionMs, noteType]);
 
 	// ── Idle state — delegate to extracted component ───────────────────────────
 	if (!workingTask) {
@@ -643,7 +709,8 @@ export function TimerBar({
 			<div className="mx-auto flex max-w-6xl flex-col gap-3">
 				{/* Top row */}
 				<div className="flex items-start justify-between gap-3">
-					<div className="min-w-0 flex-1 space-y-1 md:space-y-3">
+					<div className="min-w-0 flex-1 space-y-1 md:space-y-2">
+						{/* Badges row: pamphlet + due date + tag */}
 						<div className="flex items-center gap-2 flex-wrap">
 							{workingPamphlet && (
 								<span
@@ -652,56 +719,63 @@ export function TimerBar({
 									{workingPamphlet.name}
 								</span>
 							)}
-							<p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground hidden md:block">
-								Working On
-							</p>
+
+							{/* Due date chip */}
+							<div className="relative">
+								<button
+									onClick={() => setDueDatePickerOpen((prev) => !prev)}
+									className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded border transition-colors
+                                    ${
+																			workingTask.due_date
+																				? (() => {
+																						const { urgency } = formatDueDate(
+																							workingTask.due_date,
+																						);
+																						const urgencyClasses: Record<
+																							string,
+																							string
+																						> = {
+																							overdue:
+																								"border-red-500/40 bg-red-500/10 text-red-500",
+																							soon: "border-amber-500/40 bg-amber-500/10 text-amber-500",
+																							normal:
+																								"border-muted-foreground/30 bg-muted/50 text-muted-foreground",
+																							far: "border-muted-foreground/20 bg-transparent text-muted-foreground/50",
+																						};
+																						return urgencyClasses[urgency];
+																					})()
+																				: "border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:border-muted-foreground/60 hover:text-muted-foreground"
+																		}`}
+								>
+									{workingTask.due_date
+										? `⏰ ${formatDueDate(workingTask.due_date).label}`
+										: "+ due date"}
+								</button>
+								{dueDatePickerOpen && (
+									<DueDatePicker
+										currentDueDate={workingTask.due_date}
+										onSet={(isoDate) =>
+											onUpdateDueDate(workingTask.id, isoDate)
+										}
+										onClose={() => setDueDatePickerOpen(false)}
+									/>
+								)}
+							</div>
+
+							{/* Tag pill */}
+							<TagPill
+								tagId={workingTask.tag}
+								onSelectTag={(tag) => onUpdateTaskTag(workingTask.id, tag)}
+								className="scale-90 origin-left"
+							/>
 						</div>
+
+						{/* Task title */}
 						<p className="truncate text-base font-semibold tracking-tight text-foreground md:text-3xl md:tracking-[0.04em]">
 							{workingTask.text}
 						</p>
-						<div className="flex items-center gap-2 relative">
-							<p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground flex-shrink-0">
-								{statusText}
-							</p>
-
-							{/* Clickable due date chip — shows current due date or an "add" prompt */}
-							<button
-								onClick={() => setDueDatePickerOpen((prev) => !prev)}
-								className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded border transition-colors flex-shrink-0
-      								${
-												workingTask.due_date
-													? (() => {
-															const { urgency } = formatDueDate(
-																workingTask.due_date,
-															);
-															const urgencyClasses: Record<string, string> = {
-																overdue:
-																	"border-red-500/40 bg-red-500/10 text-red-500",
-																soon: "border-amber-500/40 bg-amber-500/10 text-amber-500",
-																normal:
-																	"border-muted-foreground/30 bg-muted/50 text-muted-foreground",
-																far: "border-muted-foreground/20 bg-transparent text-muted-foreground/50",
-															};
-															return urgencyClasses[urgency];
-														})()
-													: "border-dashed border-muted-foreground/30 text-muted-foreground/50 hover:border-muted-foreground/60 hover:text-muted-foreground"
-											}`}
-							>
-								{workingTask.due_date
-									? `⏰ ${formatDueDate(workingTask.due_date).label}`
-									: "+ due date"}
-							</button>
-
-							{/* Due date picker popup */}
-							{dueDatePickerOpen && (
-								<DueDatePicker
-									currentDueDate={workingTask.due_date}
-									onSet={(isoDate) => onUpdateDueDate(workingTask.id, isoDate)}
-									onClose={() => setDueDatePickerOpen(false)}
-								/>
-							)}
-						</div>
 					</div>
+
 					<button
 						onClick={handleCancelTask}
 						className={iconBtn}
@@ -712,18 +786,11 @@ export function TimerBar({
 				</div>
 
 				{/* Timer display */}
-				<div className="flex items-center gap-2 flex-wrap">
-					<span
-						className={`font-mono text-xl tracking-[0.12em] md:text-4xl md:tracking-[0.16em] ${isRunning ? "text-af4-highlight" : "text-foreground"}`}
-					>
-						{formatTimerDisplay(totalDisplayTime)}
-					</span>
-					{sessionMs > 0 && (
-						<span className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-							+{formatTimeCompact(sessionMs)}
-						</span>
-					)}
-				</div>
+				<span
+					className={`font-mono text-xl tracking-[0.12em] md:text-4xl md:tracking-[0.16em] ${isRunning ? "text-af4-highlight" : "text-foreground"}`}
+				>
+					{formatTimerDisplay(totalDisplayTime)}
+				</span>
 
 				{/* Action buttons */}
 				<div className="flex items-center gap-1.5 flex-wrap">
@@ -789,28 +856,172 @@ export function TimerBar({
 					)}
 				</div>
 
-				<div className="h-px w-[20px] bg-border" />
+				{/* Divider */}
+				<div className="h-px w-full bg-border/50" />
 
 				{/* Note input */}
-				<div className="flex items-center gap-2 mt-1">
-					<input
-						type="text"
-						value={note}
-						onChange={(e) => setNote(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" && workingTask) handleComplete();
-						}}
-						placeholder="Achievement note (optional)..."
-						className="flex-1 bg-transparent border-none outline-none text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:text-foreground transition-colors"
-					/>
-					{note && (
+				<div className="flex items-center gap-2">
+					{/* Type toggler */}
+					<div className="flex items-center gap-0.5 rounded-md border border-border p-0.5 flex-shrink-0">
 						<button
 							type="button"
-							onClick={() => setNote("")}
-							className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+							onClick={() => setNoteType("log")}
+							title="Session log — timestamped entry"
+							className={`rounded p-1 transition-colors ${
+								noteType === "log"
+									? "bg-[#8b9a6b]/20 text-[#8b9a6b]"
+									: "text-muted-foreground/40 hover:text-muted-foreground"
+							}`}
 						>
-							<X className="w-3 h-3" />
+							<ClipboardList className="w-3 h-3" />
 						</button>
+						<button
+							type="button"
+							onClick={() => setNoteType("achievement")}
+							title="Achievement — completion reflection"
+							className={`rounded p-1 transition-colors ${
+								noteType === "achievement"
+									? "bg-amber-500/20 text-amber-500"
+									: "text-muted-foreground/40 hover:text-muted-foreground"
+							}`}
+						>
+							<Trophy className="w-3 h-3" />
+						</button>
+					</div>
+
+					<input
+						type="text"
+						value={noteInput}
+						onChange={(e) => setNoteInput(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") handleNoteSubmit();
+						}}
+						placeholder={
+							noteType === "log"
+								? "Log a note, hit Enter..."
+								: "What did you achieve?"
+						}
+						className="flex-1 bg-transparent border-none outline-none text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:text-foreground transition-colors"
+					/>
+					{noteInput && (
+						<button
+							type="button"
+							onClick={handleNoteSubmit}
+							className="text-muted-foreground/40 hover:text-[#8b9a6b] transition-colors"
+						>
+							<Send className="w-3 h-3" />
+						</button>
+					)}
+				</div>
+
+				{/* Note log zone */}
+				<div className="flex flex-col gap-1.5">
+					{/* Scrollable bullet list — achievements pinned top, logs below, max ~4 lines */}
+					{noteEntries.length > 0 && (
+						<div
+							className="flex flex-col gap-0.5 overflow-y-auto max-h-[88px]"
+							style={{
+								scrollbarWidth: "thin",
+								scrollbarColor: "hsl(var(--border)) transparent",
+							}}
+						>
+							{[
+								...noteEntries.filter((e) => e.type === "achievement"),
+								...noteEntries.filter((e) => e.type === "log"),
+							].map((entry) => {
+								const isAchievement = entry.type === "achievement";
+								return (
+									<div
+										key={entry.id}
+										className="flex items-baseline gap-2 text-xs"
+									>
+										{/* Bullet / icon */}
+										{isAchievement ? (
+											<span className="text-amber-500 flex-shrink-0 text-[11px]">
+												🏆
+											</span>
+										) : (
+											<span className="text-[#8b9a6b] font-mono flex-shrink-0">
+												•
+											</span>
+										)}
+
+										{/* Timestamp — only for logs */}
+										{!isAchievement && (
+											<span className="font-mono text-[10px] flex-shrink-0 text-muted-foreground/50">
+												{formatTimeCompact(entry.elapsedMs)}
+											</span>
+										)}
+
+										{/* Inline edit */}
+										{editingNoteId === entry.id ? (
+											<input
+												autoFocus
+												value={editingNoteText}
+												onChange={(e) => setEditingNoteText(e.target.value)}
+												onKeyDown={(e) => {
+													if (e.key === "Enter") {
+														const trimmed = editingNoteText.trim();
+														if (trimmed) {
+															setNoteEntries((prev) =>
+																prev.map((n) =>
+																	n.id === entry.id
+																		? { ...n, text: trimmed }
+																		: n,
+																),
+															);
+														} else {
+															setNoteEntries((prev) =>
+																prev.filter((n) => n.id !== entry.id),
+															);
+														}
+														setEditingNoteId(null);
+														setEditingNoteText("");
+													}
+													if (e.key === "Escape") {
+														setEditingNoteId(null);
+														setEditingNoteText("");
+													}
+												}}
+												onBlur={() => {
+													const trimmed = editingNoteText.trim();
+													if (trimmed) {
+														setNoteEntries((prev) =>
+															prev.map((n) =>
+																n.id === entry.id ? { ...n, text: trimmed } : n,
+															),
+														);
+													} else {
+														setNoteEntries((prev) =>
+															prev.filter((n) => n.id !== entry.id),
+														);
+													}
+													setEditingNoteId(null);
+													setEditingNoteText("");
+												}}
+												className={`flex-1 bg-transparent border-none outline-none text-xs focus:text-foreground transition-colors ${
+													isAchievement ? "text-amber-400" : "text-foreground"
+												}`}
+											/>
+										) : (
+											<span
+												onClick={() => {
+													setEditingNoteId(entry.id);
+													setEditingNoteText(entry.text);
+												}}
+												className={`cursor-pointer hover:text-foreground transition-colors ${
+													isAchievement
+														? "text-amber-500 dark:text-amber-400"
+														: "text-foreground/70"
+												}`}
+											>
+												{entry.text}
+											</span>
+										)}
+									</div>
+								);
+							})}
+						</div>
 					)}
 				</div>
 			</div>

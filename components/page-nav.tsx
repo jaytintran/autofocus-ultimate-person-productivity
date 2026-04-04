@@ -247,52 +247,70 @@ function CompassButton({
 									No achievements yet. Complete a task and add a note!
 								</p>
 							) : (
-								completedTasksWithNotes.map((task, i) => {
-									const date = new Date(task.completed_at);
-									const pamphlet =
-										pamphlets.find((p) => p.id === task.pamphlet_id) ?? null;
-									return (
-										<div
-											key={i}
-											className="flex flex-col gap-0.5 py-2 border-b border-border/50 last:border-0"
-										>
-											<p className="text-sm font-medium text-foreground leading-snug">
-												{task.note}
-											</p>
-											<p className="text-[11px] text-muted-foreground">
-												<span className="underline">From the task</span> :{" "}
-												{task.text}
-											</p>
-											<div className="flex items-center gap-2 mt-0.5">
-												<p className="text-[11px] text-muted-foreground/60">
-													{date.toLocaleDateString(undefined, {
-														weekday: "short",
-														year: "numeric",
-														month: "short",
-														day: "numeric",
-													})}
-													{" · "}
-													{date.toLocaleTimeString(undefined, {
-														hour: "2-digit",
-														minute: "2-digit",
-													})}
+								completedTasksWithNotes
+									.filter((task) =>
+										task.note
+											.split("\n")
+											.some((line) => line.trim() && !line.startsWith("•")),
+									)
+									.map((task, i) => {
+										const date = new Date(task.completed_at);
+										const pamphlet =
+											pamphlets.find((p) => p.id === task.pamphlet_id) ?? null;
+										return (
+											<div
+												key={i}
+												className="flex flex-col gap-0.5 py-2 border-b border-border/50 last:border-0"
+											>
+												<div className="flex flex-col gap-0.5">
+													{task.note
+														.split("\n")
+														.filter(
+															(line) => line.trim() && !line.startsWith("•"),
+														)
+														.map((line, i) => (
+															<p
+																key={i}
+																className="text-sm font-medium text-foreground leading-snug"
+															>
+																{line}
+															</p>
+														))}
+												</div>
+												<p className="text-[11px] text-muted-foreground">
+													<span className="underline">From the task</span> :{" "}
+													{task.text}
 												</p>
-												{pamphlet && (
-													<>
-														<span className="text-muted-foreground/40 text-[11px]">
-															·
-														</span>
-														<span
-															className={`text-[11px] font-medium ${PAMPHLET_COLORS[pamphlet.color].text}`}
-														>
-															{pamphlet.name}
-														</span>
-													</>
-												)}
+												<div className="flex items-center gap-2 mt-0.5">
+													<p className="text-[11px] text-muted-foreground/60">
+														{date.toLocaleDateString(undefined, {
+															weekday: "short",
+															year: "numeric",
+															month: "short",
+															day: "numeric",
+														})}
+														{" · "}
+														{date.toLocaleTimeString(undefined, {
+															hour: "2-digit",
+															minute: "2-digit",
+														})}
+													</p>
+													{pamphlet && (
+														<>
+															<span className="text-muted-foreground/40 text-[11px]">
+																·
+															</span>
+															<span
+																className={`text-[11px] font-medium ${PAMPHLET_COLORS[pamphlet.color].text}`}
+															>
+																{pamphlet.name}
+															</span>
+														</>
+													)}
+												</div>
 											</div>
-										</div>
-									);
-								})
+										);
+									})
 							)}
 						</div>
 					</DialogContent>
