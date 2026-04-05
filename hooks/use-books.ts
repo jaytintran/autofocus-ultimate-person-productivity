@@ -8,6 +8,7 @@ import {
 } from "@/lib/books";
 import { useCallback } from "react";
 import { useUserId } from "./use-user-id";
+import { db } from "@/lib/db";
 
 export function useBooks() {
 	const userId = useUserId();
@@ -18,6 +19,11 @@ export function useBooks() {
 		isLoading,
 	} = useSWR<Book[]>(userId ? `books-${userId}` : null, getBooks, {
 		refreshInterval: 0,
+		onError: async () => {
+			// Offline fallback
+			const cached = await db.books.toArray();
+			mutate(cached, false);
+		},
 	});
 	const handleUpdate = useCallback(
 		async (id: string, updates: Partial<Book>) => {

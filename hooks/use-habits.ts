@@ -11,6 +11,7 @@ import {
 } from "@/lib/habits";
 import { useCallback } from "react";
 import { useUserId } from "./use-user-id";
+import { db } from "@/lib/db";
 
 export function useHabits() {
 	const userId = useUserId();
@@ -21,6 +22,11 @@ export function useHabits() {
 		isLoading,
 	} = useSWR<Habit[]>(userId ? `habits-${userId}` : null, getHabits, {
 		refreshInterval: 0,
+		onError: async () => {
+			// Offline fallback - load from IndexedDB
+			const cached = await db.habits.orderBy("position").toArray();
+			mutate(cached, false);
+		},
 	});
 
 	const handleUpdate = useCallback(

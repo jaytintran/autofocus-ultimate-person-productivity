@@ -324,11 +324,11 @@ export function AutofocusApp() {
 	const { data: appState, mutate: mutateAppState } = useSWR<AppState>(
 		userId ? `app-state-${userId}` : null,
 		async () => {
-			if (!isOnline()) return undefined;
-			return getAppState();
+			return getAppState(); // Now has offline fallback built-in
 		},
 		{
 			refreshInterval: 1000,
+			fallbackData: undefined,
 			onError: () => {},
 		},
 	);
@@ -1965,16 +1965,23 @@ export function AutofocusApp() {
 	// -------------------------------------------------------------------------
 	// Render
 	// -------------------------------------------------------------------------
-	if (!displayedAppState && isOnline()) {
+	if (!displayedAppState) {
 		return (
 			<div className="min-h-screen bg-background flex items-center justify-center">
-				<div className="text-muted-foreground">Loading...</div>
+				<div className="text-muted-foreground">
+					{isOnline() ? "Loading..." : "Offline - Loading cached data..."}
+				</div>
 			</div>
 		);
 	}
 
 	return (
 		<div className="h-screen overflow-hidden bg-background text-foreground flex flex-col">
+			{!isOnline && (
+				<div className="bg-destructive text-destructive-foreground px-4 py-2 text-center text-sm">
+					Offline - Changes will sync when connection is restored
+				</div>
+			)}
 			<Header />
 
 			<PamphletSwitcher

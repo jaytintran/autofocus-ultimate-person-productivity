@@ -30,16 +30,24 @@ export async function getProjects(): Promise<Project[]> {
 	if (!isOnline()) {
 		return db.projects.toArray();
 	}
-	const supabase = createClient();
-	const { data, error } = await supabase
-		.from("projects")
-		.select("*")
-		.order("priority", { ascending: true })
-		.order("title", { ascending: true });
-	if (error) throw error;
-	const projects = data || [];
-	await db.projects.bulkPut(projects);
-	return projects;
+
+	try {
+		const supabase = createClient();
+		const { data, error } = await supabase
+			.from("projects")
+			.select("*")
+			.order("priority", { ascending: true })
+			.order("title", { ascending: true });
+
+		if (error) throw error;
+
+		const projects = data || [];
+		await db.projects.bulkPut(projects);
+		return projects;
+	} catch (error) {
+		// Fallback to cache on any error
+		return db.projects.toArray();
+	}
 }
 
 export async function updateProject(
@@ -73,17 +81,17 @@ export async function updateProject(
 }
 
 export async function addProject(
-	project: Omit<Project, "id" | "created_at" | "updated_at">,
+	project: Omit<Project, "id" | "created_at" | "updated_at" | "user_id">,
 ): Promise<Project> {
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
-
 	const now = new Date().toISOString();
 
 	if (!isOnline()) {
+		const supabase = createClient();
+		const {
+			data: { user },
+		} = await supabase.auth.getUser();
+		if (!user) throw new Error("Not authenticated");
+
 		const newProject: Project = {
 			...project,
 			id: crypto.randomUUID(),
@@ -99,6 +107,12 @@ export async function addProject(
 		});
 		return newProject;
 	}
+
+	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
 
 	const { data, error } = await supabase
 		.from("projects")

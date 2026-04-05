@@ -21,6 +21,7 @@ import {
 } from "@/lib/pamphlet-cache";
 import type { Task, Pamphlet, PamphletColor } from "@/lib/types";
 import { reorderPamphlets } from "@/lib/store";
+import { db } from "@/lib/db";
 
 import { useUserId } from "./use-user-id";
 
@@ -35,8 +36,24 @@ export function usePamphlets() {
 		getPamphlets,
 		{
 			refreshInterval: 0,
-			onSuccess: (data) => {
-				if (!data.length) return;
+			onError: async () => {
+				// Offline fallback
+				const cached = await db.pamphlets.orderBy("position").toArray();
+				mutatePamphlets(cached, false);
+			},
+			onSuccess: async (data) => {
+				// Create default pamphlet if empty (offline or online)
+				if (!data.length) {
+					try {
+						const defaultPamphlet = await createPamphlet("Main", "blue", 0);
+						await mutatePamphlets([defaultPamphlet]);
+						setActivePamphletId(defaultPamphlet.id);
+						_setActivePamphletId(defaultPamphlet.id);
+					} catch (e) {
+						console.error("Failed to create default pamphlet:", e);
+					}
+					return;
+				}
 				const stored = getActivePamphletId();
 				const valid = data.find((p) => p.id === stored);
 				if (!valid) {

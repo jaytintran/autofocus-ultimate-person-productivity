@@ -1,5 +1,7 @@
-import { AutofocusApp } from '@/components/autofocus-app'
+"use client";
+
+import { AutofocusApp } from "@/components/autofocus-app";
 
 export default function Home() {
-  return <AutofocusApp />
+	return <AutofocusApp />;
 }

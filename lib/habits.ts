@@ -128,15 +128,23 @@ export async function getHabits(): Promise<Habit[]> {
 	if (!isOnline()) {
 		return db.habits.orderBy("position").toArray();
 	}
-	const supabase = createClient();
-	const { data, error } = await supabase
-		.from("habits")
-		.select("*")
-		.order("position", { ascending: true });
-	if (error) throw error;
-	const habits = data || [];
-	await db.habits.bulkPut(habits);
-	return habits;
+
+	try {
+		const supabase = createClient();
+		const { data, error } = await supabase
+			.from("habits")
+			.select("*")
+			.order("position", { ascending: true });
+
+		if (error) throw error;
+
+		const habits = data || [];
+		await db.habits.bulkPut(habits);
+		return habits;
+	} catch (error) {
+		// Fallback to cache on any error
+		return db.habits.orderBy("position").toArray();
+	}
 }
 
 export async function updateHabit(
@@ -172,27 +180,27 @@ export async function updateHabit(
 export async function addHabit(
 	habit: Omit<
 		Habit,
-		"id" | "created_at" | "updated_at" | "completions" | "position"
+		"id" | "created_at" | "updated_at" | "completions" | "position" | "user_id"
 	>,
 ): Promise<Habit> {
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
-
-	const { data: existing } = await supabase
-		.from("habits")
-		.select("position")
-		.eq("user_id", user.id)
-		.order("position", { ascending: false })
-		.limit(1);
-
-	const nextPosition =
-		existing && existing.length > 0 ? existing[0].position + 1 : 0;
 	const now = new Date().toISOString();
 
 	if (!isOnline()) {
+		// Get user from cached auth session (available offline after first login)
+		const supabase = createClient();
+		const {
+			data: { user },
+		} = await supabase.auth.getUser();
+		if (!user) throw new Error("Not authenticated");
+
+		// Compute next position from IDB
+		const existing = await db.habits
+			.orderBy("position")
+			.reverse()
+			.limit(1)
+			.toArray();
+		const nextPosition = existing.length > 0 ? existing[0].position + 1 : 0;
+
 		const newHabit: Habit = {
 			...habit,
 			id: crypto.randomUUID(),
@@ -210,6 +218,22 @@ export async function addHabit(
 		});
 		return newHabit;
 	}
+
+	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
+
+	const { data: existing } = await supabase
+		.from("habits")
+		.select("position")
+		.eq("user_id", user.id)
+		.order("position", { ascending: false })
+		.limit(1);
+
+	const nextPosition =
+		existing && existing.length > 0 ? existing[0].position + 1 : 0;
 
 	const { data, error } = await supabase
 		.from("habits")

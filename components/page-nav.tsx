@@ -407,7 +407,10 @@ export function PageNav({
 					{/* Stats — inline on desktop, hidden here on mobile (shown below) */}
 					<div className="hidden sm:flex items-center gap-3">
 						<div className="w-px h-3 bg-border shrink-0" />
-						<span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
+						<span
+							className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0"
+							suppressHydrationWarning
+						>
 							{totalActiveTasks} tasks
 						</span>
 						<div className="w-px h-3 bg-border shrink-0" />
@@ -417,6 +420,7 @@ export function PageNav({
 								<span
 									key={tag.id}
 									className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0 flex items-center gap-1"
+									suppressHydrationWarning
 								>
 									<span>{tag.emoji}</span>
 									<span>{count}</span>
@@ -424,7 +428,10 @@ export function PageNav({
 							);
 						})}
 						<div className="w-px h-3 bg-border shrink-0" />
-						<span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
+						<span
+							className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0"
+							suppressHydrationWarning
+						>
 							🏷️ {taskTagCounts.none ?? 0} untagged
 						</span>
 					</div>
@@ -506,7 +513,10 @@ export function PageNav({
 
 			{/* Stats row — mobile only */}
 			<div className="flex sm:hidden ml-1 items-center justify-left gap-3 px-4 py-1.5 overflow-x-auto border-border/50">
-				<span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
+				<span
+					className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0"
+					suppressHydrationWarning
+				>
 					{totalActiveTasks} tasks
 				</span>
 				<div className="w-px h-3 bg-border shrink-0" />
@@ -516,6 +526,7 @@ export function PageNav({
 						<span
 							key={tag.id}
 							className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0 flex items-center gap-1"
+							suppressHydrationWarning
 						>
 							<span>{tag.emoji}</span>
 							<span>{count}</span>
@@ -523,7 +534,10 @@ export function PageNav({
 					);
 				})}
 				<div className="w-px h-3 bg-border shrink-0" />
-				<span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
+				<span
+					className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0"
+					suppressHydrationWarning
+				>
 					🏷️ {taskTagCounts.none ?? 0} untagged
 				</span>
 			</div>

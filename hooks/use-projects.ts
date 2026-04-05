@@ -8,6 +8,7 @@ import {
 } from "@/lib/projects";
 import { useCallback } from "react";
 import { useUserId } from "./use-user-id";
+import { db } from "@/lib/db";
 
 export function useProjects() {
 	const userId = useUserId();
@@ -18,6 +19,11 @@ export function useProjects() {
 		isLoading,
 	} = useSWR<Project[]>(userId ? `projects-${userId}` : null, getProjects, {
 		refreshInterval: 0,
+		onError: async () => {
+			// Offline fallback
+			const cached = await db.projects.toArray();
+			mutate(cached, false);
+		},
 	});
 
 	const handleUpdate = useCallback(

@@ -4,7 +4,13 @@ import { TagId } from "@/lib/tags";
 import type { PamphletColor } from "@/lib/pamphlet-colors";
 import { db } from "@/lib/db";
 import { isOnline, queueWrite } from "@/lib/offline-guard";
-const APP_STATE_ID = "00000000-0000-0000-0000-000000000001";
+
+/**
+ * Stable local key for the app_state row in IndexedDB.
+ * The Supabase row uses gen_random_uuid() for its `id`; we normalise it
+ * to this constant when writing to IDB so offline look-ups always work.
+ */
+export const APP_STATE_ID = "00000000-0000-0000-0000-000000000001";
 
 let cachedUserId: string | null = null;
 
@@ -43,7 +49,11 @@ export async function getTasks(): Promise<Task[]> {
 		.select("*")
 		.order("page_number", { ascending: true })
 		.order("position", { ascending: true });
-	if (error) throw error;
+	if (error) {
+		const cached = await db.tasks.orderBy("page_number").toArray();
+		return cached;
+	}
+	await db.tasks.bulkPut(data || []);
 	return data || [];
 }
 
@@ -63,7 +73,11 @@ export async function getTasksByStatus(status: TaskStatus): Promise<Task[]> {
 		.eq("status", status)
 		.order("page_number", { ascending: true })
 		.order("position", { ascending: true });
-	if (error) throw error;
+	if (error) {
+		const cached = await db.tasks.where("status").equals(status).toArray();
+		return cached;
+	}
+	await db.tasks.bulkPut(data || []);
 	return data || [];
 }
 /**
@@ -87,7 +101,16 @@ export async function getActiveTasks(): Promise<Task[]> {
 		.in("status", ["active", "in-progress"])
 		.order("page_number", { ascending: true })
 		.order("position", { ascending: true });
-	if (error) throw error;
+	if (error) {
+		const tasks = await db.tasks
+			.where("status")
+			.anyOf(["active", "in-progress"])
+			.toArray();
+		return tasks.sort(
+			(a, b) => a.page_number - b.page_number || a.position - b.position,
+		);
+	}
+	await db.tasks.bulkPut(data || []);
 	return data || [];
 }
 
@@ -120,7 +143,19 @@ export async function getCompletedTasks(page: number = 1): Promise<Task[]> {
 		.eq("status", "completed")
 		.order("completed_at", { ascending: false })
 		.range(from, to);
-	if (error) throw error;
+	if (error) {
+		const all = await db.tasks.where("status").equals("completed").toArray();
+		const sorted = all.sort(
+			(a, b) =>
+				new Date(b.completed_at!).getTime() -
+				new Date(a.completed_at!).getTime(),
+		);
+		return sorted.slice(
+			(page - 1) * COMPLETED_PAGE_SIZE,
+			page * COMPLETED_PAGE_SIZE,
+		);
+	}
+	await db.tasks.bulkPut(data || []);
 	return data || [];
 }
 
@@ -141,25 +176,42 @@ export async function getCompletedTasksCount(): Promise<number> {
 	return count || 0;
 }
 
-export async function getTasksForPage(pageNumber: number): Promise<Task[]> {
-	if (!isOnline()) {
+export async function getTasksForPage(
+	pageNumber: number,
+	pamphletId?: string,
+): Promise<Task[]> {
+	try {
+		const supabase = createClient();
+		let query = supabase
+			.from("tasks")
+			.select("*")
+			.eq("page_number", pageNumber)
+			.in("status", ["active", "in-progress"])
+			.order("position", { ascending: true });
+
+		if (pamphletId) {
+			query = query.eq("pamphlet_id", pamphletId);
+		}
+
+		const { data, error } = await query;
+		if (error) throw error;
+		return data || [];
+	} catch (e) {
+		// Offline fallback
 		const tasks = await db.tasks
 			.where("page_number")
 			.equals(pageNumber)
-			.toArray();
-		return tasks
-			.filter((t) => t.status === "active" || t.status === "in-progress")
-			.sort((a, b) => a.position - b.position);
+			.and((task) => {
+				const statusMatch =
+					task.status === "active" || task.status === "in-progress";
+				const pamphletMatch = pamphletId
+					? task.pamphlet_id === pamphletId
+					: true;
+				return statusMatch && pamphletMatch;
+			})
+			.sortBy("position");
+		return tasks;
 	}
-	const supabase = createClient();
-	const { data, error } = await supabase
-		.from("tasks")
-		.select("*")
-		.eq("page_number", pageNumber)
-		.in("status", ["active", "in-progress"])
-		.order("position", { ascending: true });
-	if (error) throw error;
-	return data || [];
 }
 
 export async function addTask(
@@ -648,195 +700,422 @@ export async function deleteTask(
 }
 
 // App State functions
-export async function getAppState(): Promise<AppState> {
-	// app_state is never cached — always requires network
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
 
+function buildDefaultAppState(userId: string, now: string): AppState {
+	return {
+		id: APP_STATE_ID,
+		user_id: userId,
+		current_page: 1,
+		page_size: 30,
+		last_pass_had_no_action: false,
+		working_on_task_id: null,
+		session_start_time: null,
+		timer_state: "idle",
+		current_session_ms: 0,
+		default_filter: "all",
+		created_at: now,
+		updated_at: now,
+	};
+}
+
+export async function getAppState(): Promise<AppState> {
+	const userId = await getUserId();
+
+	if (!isOnline()) {
+		const cached = await db.app_state.get(APP_STATE_ID);
+		if (cached) return cached;
+
+		// Return default offline state with all required fields
+		const defaultState = buildDefaultAppState(userId, new Date().toISOString());
+		await db.app_state.put(defaultState);
+		return defaultState;
+	}
+
+	const supabase = createClient();
+	// Always filter by user_id — the Supabase row id is gen_random_uuid(), not APP_STATE_ID
 	const { data, error } = await supabase
 		.from("app_state")
 		.select("*")
-		.eq("user_id", user.id)
+		.eq("user_id", userId)
 		.single();
 
-	if (error && error.code === "PGRST116") {
-		const { data: newState, error: insertError } = await supabase
-			.from("app_state")
-			.insert({
-				id: crypto.randomUUID(),
-				user_id: user.id,
-				current_page: 1,
-				page_size: 12,
-				last_pass_had_no_action: false,
-				working_on_task_id: null,
-				session_start_time: null,
-				timer_state: "idle",
-				current_session_ms: 0,
-				default_filter: "all",
-			})
-			.select()
-			.single();
-		if (insertError) throw insertError;
-		return newState;
+	if (error) {
+		const cached = await db.app_state.get(APP_STATE_ID);
+		if (cached) return cached;
+		// Return in-memory default so the UI stays functional
+		return buildDefaultAppState(userId, new Date().toISOString());
 	}
 
-	if (error) throw error;
-	return data;
+	// Normalise: override Supabase's random UUID with our stable local key
+	const normalised: AppState = { ...data, id: APP_STATE_ID };
+	await db.app_state.put(normalised);
+	return normalised;
 }
 
 export async function updateAppState(
 	updates: Partial<AppState>,
 ): Promise<AppState> {
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
+	const userId = await getUserId();
+	const now = new Date().toISOString();
 
+	if (!isOnline()) {
+		const current = await db.app_state.get(APP_STATE_ID);
+		const updated: AppState = {
+			...(current ?? buildDefaultAppState(userId, now)),
+			...updates,
+			// Always enforce the stable local key and timestamp
+			id: APP_STATE_ID,
+			updated_at: now,
+		};
+		await db.app_state.put(updated);
+		await queueWrite({
+			table: "app_state",
+			action: "update",
+			payload: { id: APP_STATE_ID, ...updates, updated_at: now },
+		});
+		return updated;
+	}
+
+	const supabase = createClient();
 	const { data, error } = await supabase
 		.from("app_state")
-		.update({ ...updates, updated_at: new Date().toISOString() })
-		.eq("user_id", user.id)
+		.update({ ...updates, updated_at: now })
+		.eq("user_id", userId)
 		.select()
 		.single();
 
 	if (error) throw error;
-	return data;
+	// Normalise id before storing locally
+	const normalised: AppState = { ...data, id: APP_STATE_ID };
+	await db.app_state.put(normalised);
+	return normalised;
 }
 
 export async function startWorkingOnTask(taskId: string): Promise<AppState> {
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
+	const now = new Date().toISOString();
 
-	const { data, error } = await supabase
-		.from("app_state")
-		.update({
+	if (!isOnline()) {
+		const userId = await getUserId();
+		const current =
+			(await db.app_state.get(APP_STATE_ID)) ??
+			buildDefaultAppState(userId, now);
+
+		const updated: AppState = {
+			...current,
 			working_on_task_id: taskId,
-			session_start_time: new Date().toISOString(),
 			timer_state: "running",
+			session_start_time: now,
 			current_session_ms: 0,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("user_id", user.id)
-		.select()
-		.single();
+			updated_at: now,
+		};
 
-	if (error) throw error;
+		await db.app_state.put(updated);
+		await queueWrite({
+			table: "app_state",
+			action: "update",
+			payload: {
+				id: APP_STATE_ID,
+				working_on_task_id: taskId,
+				timer_state: "running",
+				session_start_time: now,
+				current_session_ms: 0,
+				updated_at: now,
+			},
+		});
 
-	// Also update the task status
-	await supabase
-		.from("tasks")
-		.update({ status: "in-progress", updated_at: new Date().toISOString() })
-		.eq("id", taskId);
+		return updated;
+	}
 
-	return data;
+	return updateAppState({
+		working_on_task_id: taskId,
+		timer_state: "running",
+		session_start_time: now,
+		current_session_ms: 0,
+	});
 }
 
 export async function stopWorkingOnTask(): Promise<AppState> {
-	// app_state — online only, no queue
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
-	const { data, error } = await supabase
-		.from("app_state")
-		.update({
+	const now = new Date().toISOString();
+
+	if (!isOnline()) {
+		const userId = await getUserId();
+		const current =
+			(await db.app_state.get(APP_STATE_ID)) ??
+			buildDefaultAppState(userId, now);
+
+		const updated: AppState = {
+			...current,
 			working_on_task_id: null,
 			session_start_time: null,
 			timer_state: "idle",
 			current_session_ms: 0,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("user_id", user.id)
-		.select()
-		.single();
-	if (error) throw error;
-	return data;
+			updated_at: now,
+		};
+
+		await db.app_state.put(updated);
+		await queueWrite({
+			table: "app_state",
+			action: "update",
+			payload: {
+				id: APP_STATE_ID,
+				working_on_task_id: null,
+				session_start_time: null,
+				timer_state: "idle",
+				current_session_ms: 0,
+				updated_at: now,
+			},
+		});
+
+		return updated;
+	}
+
+	// Online: delegate to updateAppState (which filters by user_id)
+	return updateAppState({
+		working_on_task_id: null,
+		session_start_time: null,
+		timer_state: "idle",
+		current_session_ms: 0,
+	});
 }
 
-export async function pauseTimer(currentSessionMs: number): Promise<AppState> {
-	// app_state — online only, no queue
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
-	const { data, error } = await supabase
-		.from("app_state")
-		.update({
+/**
+ * Pauses the timer.
+ * @param sessionMs - Pre-computed total accumulated milliseconds for the current
+ *   session (as tracked by the UI timer component). When provided this value
+ *   takes precedence over the DB-computed elapsed time, giving a more accurate
+ *   reading.  Falls back to computing from session_start_time if omitted.
+ */
+export async function pauseTimer(sessionMs?: number): Promise<AppState> {
+	const state = await getAppState();
+	const now = new Date().toISOString();
+
+	const newSessionMs =
+		sessionMs !== undefined
+			? sessionMs
+			: state.current_session_ms +
+				(state.session_start_time
+					? Date.now() - new Date(state.session_start_time).getTime()
+					: 0);
+
+	if (!isOnline()) {
+		const updated: AppState = {
+			...state,
 			timer_state: "paused",
-			current_session_ms: currentSessionMs,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("user_id", user.id)
-		.select()
-		.single();
-	if (error) throw error;
-	return data;
+			current_session_ms: newSessionMs,
+			session_start_time: null,
+			updated_at: now,
+		};
+
+		await db.app_state.put(updated);
+		await queueWrite({
+			table: "app_state",
+			action: "update",
+			payload: {
+				id: APP_STATE_ID,
+				timer_state: "paused",
+				current_session_ms: newSessionMs,
+				session_start_time: null,
+				updated_at: now,
+			},
+		});
+
+		return updated;
+	}
+
+	return updateAppState({
+		timer_state: "paused",
+		current_session_ms: newSessionMs,
+		session_start_time: null,
+	});
 }
 
+export async function resumeTimer(): Promise<AppState> {
+	const now = new Date().toISOString();
+
+	if (!isOnline()) {
+		const state = await getAppState();
+		const updated: AppState = {
+			...state,
+			timer_state: "running",
+			session_start_time: now,
+			updated_at: now,
+		};
+
+		await db.app_state.put(updated);
+		await queueWrite({
+			table: "app_state",
+			action: "update",
+			payload: {
+				id: APP_STATE_ID,
+				timer_state: "running",
+				session_start_time: now,
+				updated_at: now,
+			},
+		});
+
+		return updated;
+	}
+
+	return updateAppState({
+		timer_state: "running",
+		session_start_time: now,
+	});
+}
+
+/**
+ * Stops the timer and persists the accumulated session time to the task.
+ * @param taskId   - ID of the task being timed.
+ * @param sessionMs - Total accumulated milliseconds for the session (as tracked
+ *   by the UI timer). This value is added to the task's existing total_time_ms.
+ */
 export async function stopTimer(
 	taskId: string,
-	sessionTimeMs: number,
-): Promise<{ appState: AppState; task: Task }> {
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
+	sessionMs: number,
+): Promise<AppState> {
+	const now = new Date().toISOString();
 
-	// First get the current task to add session time to total
-	const { data: currentTask, error: taskFetchError } = await supabase
-		.from("tasks")
-		.select("*")
-		.eq("id", taskId)
-		.single();
+	if (!isOnline()) {
+		// Persist elapsed time to the task in IDB
+		const task = await db.tasks.get(taskId);
+		if (task) {
+			const newTotal = task.total_time_ms + sessionMs;
+			await db.tasks.update(taskId, {
+				total_time_ms: newTotal,
+				updated_at: now,
+			});
+			await queueWrite({
+				table: "tasks",
+				action: "update",
+				payload: { id: taskId, total_time_ms: newTotal, updated_at: now },
+			});
+		}
 
-	if (taskFetchError) throw taskFetchError;
-
-	// Update task with accumulated time
-	const newTotalTime = (currentTask.total_time_ms || 0) + sessionTimeMs;
-	const { data: updatedTask, error: taskUpdateError } = await supabase
-		.from("tasks")
-		.update({
-			total_time_ms: newTotalTime,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("id", taskId)
-		.select()
-		.single();
-
-	if (taskUpdateError) throw taskUpdateError;
-
-	// Update app state to stopped (keep working_on_task_id)
-	const { data: appState, error: appStateError } = await supabase
-		.from("app_state")
-		.update({
-			timer_state: "stopped",
-			current_session_ms: 0,
+		const state = await getAppState();
+		const updated: AppState = {
+			...state,
+			working_on_task_id: null,
+			timer_state: "idle",
 			session_start_time: null,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("user_id", user.id)
-		.select()
+			current_session_ms: 0,
+			updated_at: now,
+		};
+
+		await db.app_state.put(updated);
+		await queueWrite({
+			table: "app_state",
+			action: "update",
+			payload: {
+				id: APP_STATE_ID,
+				working_on_task_id: null,
+				timer_state: "idle",
+				session_start_time: null,
+				current_session_ms: 0,
+				updated_at: now,
+			},
+		});
+
+		return updated;
+	}
+
+	// Online: persist elapsed time to the task first
+	const supabase = createClient();
+	const { data: taskData } = await supabase
+		.from("tasks")
+		.select("total_time_ms")
+		.eq("id", taskId)
 		.single();
 
-	if (appStateError) throw appStateError;
+	if (taskData) {
+		const newTotal = taskData.total_time_ms + sessionMs;
+		await supabase
+			.from("tasks")
+			.update({ total_time_ms: newTotal, updated_at: now })
+			.eq("id", taskId);
+		await db.tasks.update(taskId, { total_time_ms: newTotal, updated_at: now });
+	}
 
-	return { appState, task: updatedTask };
+	return updateAppState({
+		working_on_task_id: null,
+		timer_state: "idle",
+		session_start_time: null,
+		current_session_ms: 0,
+	});
 }
 
 export async function reenterFromPanel(
 	taskId: string,
 	taskText: string,
 ): Promise<Task> {
+	const now = new Date().toISOString();
+	const userId = await getUserId();
+
+	if (!isOnline()) {
+		// Get current task to preserve total_time_ms
+		const currentTask = await db.tasks.get(taskId);
+		if (!currentTask) throw new Error("Task not found");
+
+		// Get max page for new task placement
+		const activeTasks = await db.tasks
+			.where("status")
+			.anyOf(["active", "in-progress"])
+			.toArray();
+		const maxPage =
+			activeTasks.length > 0
+				? Math.max(...activeTasks.map((t) => t.page_number))
+				: 1;
+		const tasksOnMaxPage = activeTasks.filter((t) => t.page_number === maxPage);
+		const nextPosition =
+			tasksOnMaxPage.length > 0
+				? Math.max(...tasksOnMaxPage.map((t) => t.position)) + 1
+				: 0;
+
+		// Create new task
+		const newTask: Task = {
+			id: crypto.randomUUID(),
+			text: taskText,
+			page_number: maxPage,
+			position: nextPosition,
+			status: "active",
+			total_time_ms: currentTask.total_time_ms || 0,
+			re_entered_from: taskId,
+			user_id: userId,
+			tag: currentTask.tag,
+			pamphlet_id: currentTask.pamphlet_id,
+			due_date: currentTask.due_date,
+			note: null,
+			source: "task",
+			added_at: now,
+			created_at: now,
+			updated_at: now,
+			completed_at: null,
+		};
+
+		await db.tasks.put(newTask);
+		await queueWrite({ table: "tasks", action: "insert", payload: newTask });
+
+		// Mark original as completed
+		await db.tasks.update(taskId, {
+			status: "completed",
+			completed_at: now,
+			updated_at: now,
+		});
+		await queueWrite({
+			table: "tasks",
+			action: "update",
+			payload: {
+				id: taskId,
+				status: "completed",
+				completed_at: now,
+				updated_at: now,
+			},
+		});
+
+		// Clear the panel
+		await stopWorkingOnTask();
+
+		return newTask;
+	}
+
 	const supabase = createClient();
 	const {
 		data: { user },
@@ -882,36 +1161,22 @@ export async function reenterFromPanel(
 		.from("tasks")
 		.update({
 			status: "completed",
-			completed_at: new Date().toISOString(),
-			updated_at: new Date().toISOString(),
+			completed_at: now,
+			updated_at: now,
 		})
 		.eq("id", taskId);
+
+	await db.tasks.put(newTask);
+	await db.tasks.update(taskId, {
+		status: "completed",
+		completed_at: now,
+		updated_at: now,
+	});
 
 	// Clear the panel
 	await stopWorkingOnTask();
 
 	return newTask;
-}
-
-export async function resumeTimer(): Promise<AppState> {
-	// app_state — online only, no queue
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
-	const { data, error } = await supabase
-		.from("app_state")
-		.update({
-			timer_state: "running",
-			session_start_time: new Date().toISOString(),
-			updated_at: new Date().toISOString(),
-		})
-		.eq("user_id", user.id)
-		.select()
-		.single();
-	if (error) throw error;
-	return data;
 }
 
 export async function getTotalPageCount(): Promise<number> {
@@ -936,6 +1201,15 @@ export async function getTotalPageCount(): Promise<number> {
 }
 
 export async function getNextPosition(pageNumber: number): Promise<number> {
+	if (!isOnline()) {
+		const tasks = await db.tasks
+			.where("page_number")
+			.equals(pageNumber)
+			.toArray();
+		if (tasks.length === 0) return 0;
+		return Math.max(...tasks.map((t) => t.position)) + 1;
+	}
+
 	const supabase = createClient();
 	const { data, error } = await supabase
 		.from("tasks")
@@ -1227,34 +1501,60 @@ export async function markTaskDone(
 }
 
 export async function startTask(taskId: string): Promise<AppState> {
-	// app_state — online only, no queue
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
-	const { data, error } = await supabase
-		.from("app_state")
-		.update({
+	const now = new Date().toISOString();
+
+	if (!isOnline()) {
+		const userId = await getUserId();
+		const current =
+			(await db.app_state.get(APP_STATE_ID)) ??
+			buildDefaultAppState(userId, now);
+
+		const updated: AppState = {
+			...current,
 			working_on_task_id: taskId,
 			session_start_time: null,
 			timer_state: "idle",
 			current_session_ms: 0,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("user_id", user.id)
-		.select()
-		.single();
-	if (error) throw error;
-	await supabase
+			updated_at: now,
+		};
+
+		await db.app_state.put(updated);
+		await db.tasks.update(taskId, { status: "in-progress", updated_at: now });
+
+		await queueWrite({
+			table: "app_state",
+			action: "update",
+			payload: {
+				id: APP_STATE_ID,
+				working_on_task_id: taskId,
+				session_start_time: null,
+				timer_state: "idle",
+				current_session_ms: 0,
+				updated_at: now,
+			},
+		});
+		await queueWrite({
+			table: "tasks",
+			action: "update",
+			payload: { id: taskId, status: "in-progress", updated_at: now },
+		});
+
+		return updated;
+	}
+
+	// Online: delegate to updateAppState (filters by user_id internally)
+	await createClient()
 		.from("tasks")
-		.update({ status: "in-progress", updated_at: new Date().toISOString() })
+		.update({ status: "in-progress", updated_at: now })
 		.eq("id", taskId);
-	await db.tasks.update(taskId, {
-		status: "in-progress",
-		updated_at: new Date().toISOString(),
+	await db.tasks.update(taskId, { status: "in-progress", updated_at: now });
+
+	return updateAppState({
+		working_on_task_id: taskId,
+		session_start_time: null,
+		timer_state: "idle",
+		current_session_ms: 0,
 	});
-	return data;
 }
 export async function updateTaskTag(
 	taskId: string,
@@ -1308,7 +1608,17 @@ export async function getTasksWithNotes(): Promise<Task[]> {
 		.not("note", "is", null)
 		.neq("note", "")
 		.order("completed_at", { ascending: false });
-	if (error) throw error;
+	if (error) {
+		const tasks = await db.tasks.where("status").equals("completed").toArray();
+		return tasks
+			.filter((t) => t.note && t.note !== "")
+			.sort(
+				(a, b) =>
+					new Date(b.completed_at!).getTime() -
+					new Date(a.completed_at!).getTime(),
+			);
+	}
+	await db.tasks.bulkPut(data || []);
 	return Array.isArray(data) ? data : [];
 }
 
@@ -1320,13 +1630,23 @@ export async function getPamphlets(): Promise<Pamphlet[]> {
 	if (!isOnline()) {
 		return db.pamphlets.orderBy("position").toArray();
 	}
-	const supabase = createClient();
-	const { data, error } = await supabase
-		.from("pamphlets")
-		.select("*")
-		.order("position", { ascending: true });
-	if (error) throw error;
-	return data || [];
+
+	try {
+		const supabase = createClient();
+		const { data, error } = await supabase
+			.from("pamphlets")
+			.select("*")
+			.order("position", { ascending: true });
+
+		if (error) throw error;
+
+		await db.pamphlets.bulkPut(data || []);
+		return data || [];
+	} catch (error) {
+		// Fallback to cache on any error
+		const cached = await db.pamphlets.orderBy("position").toArray();
+		return cached;
+	}
 }
 
 export async function createPamphlet(
@@ -1335,18 +1655,19 @@ export async function createPamphlet(
 	position: number,
 ): Promise<Pamphlet> {
 	const userId = await getUserId();
-	const supabase = isOnline() ? createClient() : null;
+	const now = new Date().toISOString();
+
+	const newPamphlet: Pamphlet = {
+		id: crypto.randomUUID(),
+		name,
+		color,
+		position,
+		user_id: userId,
+		created_at: now,
+		updated_at: now,
+	};
 
 	if (!isOnline()) {
-		const newPamphlet: Pamphlet = {
-			id: crypto.randomUUID(),
-			name,
-			color,
-			position,
-			user_id: userId,
-			created_at: new Date().toISOString(),
-			updated_at: new Date().toISOString(),
-		};
 		await db.pamphlets.put(newPamphlet);
 		await queueWrite({
 			table: "pamphlets",
@@ -1356,9 +1677,15 @@ export async function createPamphlet(
 		return newPamphlet;
 	}
 
-	const { data, error } = await supabase!
+	const supabase = createClient();
+	const { data, error } = await supabase
 		.from("pamphlets")
-		.insert({ name, color, position, user_id: userId })
+		.insert({
+			name,
+			color,
+			position,
+			user_id: userId,
+		})
 		.select()
 		.single();
 	if (error) throw error;
@@ -1381,7 +1708,8 @@ export async function updatePamphlet(
 			payload: { id, ...updatedFields },
 		});
 		const pamphlet = await db.pamphlets.get(id);
-		return pamphlet!;
+		if (!pamphlet) throw new Error("Pamphlet not found");
+		return pamphlet;
 	}
 
 	const supabase = createClient();
@@ -1399,7 +1727,11 @@ export async function updatePamphlet(
 export async function deletePamphlet(id: string): Promise<void> {
 	if (!isOnline()) {
 		await db.pamphlets.delete(id);
-		await queueWrite({ table: "pamphlets", action: "delete", payload: { id } });
+		await queueWrite({
+			table: "pamphlets",
+			action: "delete",
+			payload: { id },
+		});
 		return;
 	}
 
@@ -1411,7 +1743,7 @@ export async function deletePamphlet(id: string): Promise<void> {
 
 export async function reassignPamphletTasks(
 	fromPamphletId: string,
-	toPamphletId: string,
+	toPamphletId: string | null,
 ): Promise<void> {
 	const now = new Date().toISOString();
 
@@ -1440,6 +1772,17 @@ export async function reassignPamphletTasks(
 		.update({ pamphlet_id: toPamphletId, updated_at: now })
 		.eq("pamphlet_id", fromPamphletId);
 	if (error) throw error;
+
+	const tasks = await db.tasks
+		.where("pamphlet_id")
+		.equals(fromPamphletId)
+		.toArray();
+	for (const task of tasks) {
+		await db.tasks.update(task.id, {
+			pamphlet_id: toPamphletId,
+			updated_at: now,
+		});
+	}
 }
 
 export async function getActiveTasksForPamphlet(
@@ -1462,7 +1805,16 @@ export async function getActiveTasksForPamphlet(
 		.in("status", ["active", "in-progress"])
 		.order("page_number", { ascending: true })
 		.order("position", { ascending: true });
-	if (error) throw error;
+	if (error) {
+		const tasks = await db.tasks
+			.where("pamphlet_id")
+			.equals(pamphletId)
+			.toArray();
+		return tasks
+			.filter((t) => t.status === "active" || t.status === "in-progress")
+			.sort((a, b) => a.page_number - b.page_number || a.position - b.position);
+	}
+	await db.tasks.bulkPut(data || []);
 	return data || [];
 }
 
@@ -1494,7 +1846,21 @@ export async function getCompletedTasksForPamphlet(
 		.eq("status", "completed")
 		.order("completed_at", { ascending: false })
 		.range(from, to);
-	if (error) throw error;
+	if (error) {
+		const all = await db.tasks
+			.where("pamphlet_id")
+			.equals(pamphletId)
+			.toArray();
+		const sorted = all
+			.filter((t) => t.status === "completed")
+			.sort(
+				(a, b) =>
+					new Date(b.completed_at!).getTime() -
+					new Date(a.completed_at!).getTime(),
+			);
+		return sorted.slice((page - 1) * 50, page * 50);
+	}
+	await db.tasks.bulkPut(data || []);
 	return data || [];
 }
 export async function getTotalPageCountForPamphlet(
@@ -1519,7 +1885,17 @@ export async function getTotalPageCountForPamphlet(
 		.in("status", ["active", "in-progress"])
 		.order("page_number", { ascending: false })
 		.limit(1);
-	if (error) throw error;
+	if (error) {
+		const tasks = await db.tasks
+			.where("pamphlet_id")
+			.equals(pamphletId)
+			.toArray();
+		const active = tasks.filter(
+			(t) => t.status === "active" || t.status === "in-progress",
+		);
+		if (active.length === 0) return 1;
+		return Math.max(...active.map((t) => t.page_number));
+	}
 	if (!data || data.length === 0) return 1;
 	return data[0].page_number;
 }

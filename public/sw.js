@@ -1,10 +1,6 @@
-const CACHE_NAME = "autofocus-v1";
-const STATIC_ASSETS = ["/", "/favicon.svg"];
+const CACHE_NAME = "autofocus-v3";
 
 self.addEventListener("install", (event) => {
-	event.waitUntil(
-		caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)),
-	);
 	self.skipWaiting();
 });
 
@@ -25,23 +21,39 @@ self.addEventListener("fetch", (event) => {
 	const { request } = event;
 	const url = new URL(request.url);
 
-	// Skip Supabase and non-GET requests
+	// Skip non-GET requests
 	if (request.method !== "GET") return;
+
+	// Skip Supabase API calls
 	if (url.hostname.includes("supabase")) return;
 
-	event.respondWith(
-		caches.match(request).then((cached) => {
-			const fetchPromise = fetch(request)
-				.then((response) => {
-					if (response.ok) {
-						const clone = response.clone();
-						caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-					}
-					return response;
-				})
-				.catch(() => cached);
+	// Skip webpack HMR
+	if (url.pathname.includes("webpack") || url.pathname.includes("hot-update"))
+		return;
 
-			return cached || fetchPromise;
-		}),
+	event.respondWith(
+		fetch(request)
+			.then((response) => {
+				// Cache successful responses
+				if (response && response.status === 200) {
+					const clone = response.clone();
+					caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+				}
+				return response;
+			})
+			.catch(() => {
+				// Network failed - try cache
+				return caches.match(request).then((cached) => {
+					if (cached) return cached;
+					// Return offline page for navigation requests
+					if (request.mode === "navigate") {
+						return new Response(
+							"<!DOCTYPE html><html><body><h1>Offline</h1><p>Please connect to the internet</p></body></html>",
+							{ headers: { "Content-Type": "text/html" } },
+						);
+					}
+					return new Response("Offline", { status: 503 });
+				});
+			}),
 	);
 });

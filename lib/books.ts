@@ -28,6 +28,7 @@ export interface Book {
 	notes: string | null;
 	key_takeaways: string | null;
 	cover_url: string | null;
+	position: number;
 	created_at: string;
 	updated_at: string;
 	user_id: string;
@@ -37,16 +38,24 @@ export async function getBooks(): Promise<Book[]> {
 	if (!isOnline()) {
 		return db.books.orderBy("status").toArray();
 	}
-	const supabase = createClient();
-	const { data, error } = await supabase
-		.from("books")
-		.select("*")
-		.order("priority", { ascending: true })
-		.order("title", { ascending: true });
-	if (error) throw error;
-	const books = data || [];
-	await db.books.bulkPut(books);
-	return books;
+
+	try {
+		const supabase = createClient();
+		const { data, error } = await supabase
+			.from("books")
+			.select("*")
+			.order("priority", { ascending: true })
+			.order("title", { ascending: true });
+
+		if (error) throw error;
+
+		const books = data || [];
+		await db.books.bulkPut(books);
+		return books;
+	} catch (error) {
+		// Fallback to cache on any error (auth, network, etc.)
+		return db.books.orderBy("status").toArray();
+	}
 }
 
 export async function updateBook(
@@ -80,20 +89,30 @@ export async function updateBook(
 }
 
 export async function addBook(
-	book: Omit<Book, "id" | "created_at" | "updated_at">,
+	book: Omit<Book, "id" | "created_at" | "updated_at" | "position" | "user_id">,
 ): Promise<Book> {
-	const supabase = createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
-	if (!user) throw new Error("Not authenticated");
-
 	const now = new Date().toISOString();
 
 	if (!isOnline()) {
+		// Get user id from cached auth session (available offline after first login)
+		const supabase = createClient();
+		const {
+			data: { user },
+		} = await supabase.auth.getUser();
+		if (!user) throw new Error("Not authenticated");
+
+		// Compute next position from IDB
+		const existing = await db.books
+			.orderBy("position")
+			.reverse()
+			.limit(1)
+			.toArray();
+		const nextPosition = existing.length > 0 ? existing[0].position + 1 : 0;
+
 		const newBook: Book = {
 			...book,
 			id: crypto.randomUUID(),
+			position: nextPosition,
 			user_id: user.id,
 			created_at: now,
 			updated_at: now,
@@ -106,6 +125,12 @@ export async function addBook(
 		});
 		return newBook;
 	}
+
+	const supabase = createClient();
+	const {
+		data: { user },
+	} = await supabase.auth.getUser();
+	if (!user) throw new Error("Not authenticated");
 
 	const { data, error } = await supabase
 		.from("books")
