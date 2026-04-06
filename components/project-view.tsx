@@ -302,6 +302,7 @@ function ProjectModal({
 		setIsSaving(true);
 		try {
 			await onUpdate(project.id, {
+				title: title.trim() || project.title,
 				description: description.trim() || null,
 				notes: notes.trim() || null,
 				key_outcomes: outcomes.trim() || null,
@@ -319,13 +320,19 @@ function ProjectModal({
 		}
 	};
 
+	const [title, setTitle] = useState(project.title);
+
 	return (
 		<Dialog open onOpenChange={onClose}>
 			<DialogContent className="sm:max-w-[580px] max-w-[calc(100vw-2rem)] p-0 overflow-hidden max-h-[90vh] flex flex-col">
 				<div className="px-6 pt-5 pb-4 flex-shrink-0">
 					<DialogHeader>
-						<DialogTitle className="text-base leading-snug pr-6 text-foreground">
-							{project.title}
+						<DialogTitle>
+							<input
+								value={title}
+								onChange={(e) => setTitle(e.target.value)}
+								className="text-base font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-ring focus:outline-none transition-colors w-full pr-6"
+							/>
 						</DialogTitle>
 					</DialogHeader>
 

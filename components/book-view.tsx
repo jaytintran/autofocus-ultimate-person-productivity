@@ -269,6 +269,8 @@ function BookModal({
 		setIsSaving(true);
 		try {
 			await onUpdate(book.id, {
+				title: title.trim() || book.title,
+				author: author.trim() || book.author,
 				notes: notes.trim() || null,
 				key_takeaways: takeaways.trim() || null,
 				current_page: currentPage ? parseInt(currentPage) : null,
@@ -284,18 +286,27 @@ function BookModal({
 	};
 
 	const priority = book.priority ? PRIORITY_CONFIG[book.priority] : null;
+	const [title, setTitle] = useState(book.title);
+	const [author, setAuthor] = useState(book.author);
 
 	return (
 		<Dialog open onOpenChange={onClose}>
 			<DialogContent className="sm:max-w-[580px] max-w-[calc(100vw-2rem)] p-0 overflow-hidden max-h-[90vh] flex flex-col">
 				{/* Header */}
+				<DialogHeader />
 				<div className="px-6 pt-5 pb-4 flex-shrink-0">
-					<DialogHeader>
-						<DialogTitle className="text-base leading-snug pr-6 text-foreground">
-							{book.title}
-						</DialogTitle>
-					</DialogHeader>
-					<p className="text-sm text-muted-foreground mt-0.5">{book.author}</p>
+					<DialogTitle>
+						<input
+							value={title}
+							onChange={(e) => setTitle(e.target.value)}
+							className="text-base font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-ring focus:outline-none transition-colors w-full pr-6"
+						/>
+					</DialogTitle>
+					<input
+						value={author}
+						onChange={(e) => setAuthor(e.target.value)}
+						className="text-sm text-muted-foreground bg-transparent border-b border-transparent hover:border-border focus:border-ring focus:outline-none transition-colors w-full mt-1 mb-2"
+					/>
 
 					{/* Meta pills */}
 					<div className="flex items-center gap-2 mt-3 flex-wrap">

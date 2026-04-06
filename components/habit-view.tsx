@@ -348,15 +348,21 @@ function HabitModal({
 			<DialogContent className="sm:max-w-[580px] max-w-[calc(100vw-2rem)] p-0 overflow-hidden max-h-[90vh] flex flex-col">
 				<div className="px-6 pt-5 pb-4 flex-shrink-0">
 					<DialogHeader>
-						<DialogTitle className="text-base leading-snug pr-6 text-foreground flex items-center gap-2">
-							{habit.name}
+						<div className="flex items-center gap-2 pr-6">
+							<DialogTitle className="w-full">
+								<input
+									value={name}
+									onChange={(e) => setName(e.target.value)}
+									className=" text-base font-semibold bg-transparent border-b border-transparent hover:border-border focus:border-ring focus:outline-none transition-colors flex-1"
+								/>
+							</DialogTitle>
 							{streak > 0 && (
-								<span className="flex items-center gap-1 text-amber-500 text-sm">
+								<span className="flex items-center gap-1 text-amber-500 text-sm flex-shrink-0">
 									<Flame className="w-4 h-4" />
 									{streak}
 								</span>
 							)}
-						</DialogTitle>
+						</div>
 					</DialogHeader>
 
 					{/* Quick Toggle Today */}
