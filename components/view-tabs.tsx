@@ -17,6 +17,8 @@ import {
 	BookOpen,
 	Filter,
 	SlidersHorizontal,
+	PanelRightClose,
+	PanelRightOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -203,9 +205,16 @@ function MobileSortSelector({ value, onChange }: SortSelectorProps) {
 interface ViewTypeToggleProps {
 	value: CompletedViewType;
 	onChange: (view: CompletedViewType) => void;
+	buJoWidth: "full" | "narrow";
+	onBuJoWidthChange: (w: "full" | "narrow") => void;
 }
 
-function ViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
+function ViewTypeToggle({
+	value,
+	onChange,
+	buJoWidth,
+	onBuJoWidthChange,
+}: ViewTypeToggleProps) {
 	return (
 		<div className="hidden sm:inline-flex bg-secondary rounded overflow-hidden">
 			<Button
@@ -247,6 +256,24 @@ function ViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
 			>
 				<CalendarDays className="w-3.5 h-3.5" />
 			</Button>
+
+			{value === "bullet" && (
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() =>
+						onBuJoWidthChange(buJoWidth === "full" ? "narrow" : "full")
+					}
+					className="h-8 rounded text-xs transition-colors text-muted-foreground hover:text-foreground"
+					title={buJoWidth === "full" ? "Narrow view" : "Full width"}
+				>
+					{buJoWidth === "full" ? (
+						<PanelRightClose className="w-3.5 h-3.5" />
+					) : (
+						<PanelRightOpen className="w-3.5 h-3.5" />
+					)}
+				</Button>
+			)}
 		</div>
 	);
 }
@@ -359,6 +386,8 @@ interface ViewTabsProps {
 	onCompletedViewTypeChange: (view: CompletedViewType) => void;
 	contentFilter: ContentFilterState;
 	onChangeContentFilter: (filter: ContentFilterState) => void;
+	buJoWidth: "full" | "narrow";
+	onBuJoWidthChange: (w: "full" | "narrow") => void;
 }
 
 export function ViewTabs({
@@ -373,6 +402,8 @@ export function ViewTabs({
 	onCompletedViewTypeChange,
 	contentFilter,
 	onChangeContentFilter,
+	buJoWidth,
+	onBuJoWidthChange,
 }: ViewTabsProps) {
 	// Calculate active filter count for badge
 	const activeFilterCount =
@@ -391,6 +422,8 @@ export function ViewTabs({
 					<ViewTypeToggle
 						value={completedViewType}
 						onChange={onCompletedViewTypeChange}
+						buJoWidth={buJoWidth}
+						onBuJoWidthChange={onBuJoWidthChange}
 					/>
 				)}
 			</div>
@@ -423,6 +456,8 @@ export function ViewTabs({
 							<MobileViewTypeToggle
 								value={completedViewType}
 								onChange={onCompletedViewTypeChange}
+								buJoWidth={"full"}
+								onBuJoWidthChange={onBuJoWidthChange}
 							/>
 							<MobileSortSelector
 								value={completedSort}

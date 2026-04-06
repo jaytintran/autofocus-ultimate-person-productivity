@@ -75,6 +75,7 @@ interface CompletedListProps {
 	contentFilter?: ContentFilterState;
 	pamphlets: Pamphlet[];
 	activePamphletId?: string | null;
+	buJoWidth?: string | null;
 }
 
 interface GroupedTasks {
@@ -773,6 +774,7 @@ const BulletJournalView = memo(function BulletJournalView({
 	onUpdateTag,
 	onLoadMore,
 	onExportDay,
+	buJoWidth,
 }: {
 	groupedTasks: GroupedTasks[];
 	loadingTaskId: string | null;
@@ -787,6 +789,7 @@ const BulletJournalView = memo(function BulletJournalView({
 	onUpdateTag: (taskId: string, tag: TagId | null) => void;
 	onLoadMore: () => void;
 	onExportDay: (group: GroupedTasks) => void;
+	buJoWidth: string | null;
 }) {
 	const handleLoadMore = useCallback(() => {
 		onLoadMore();
@@ -805,7 +808,7 @@ const BulletJournalView = memo(function BulletJournalView({
 
 	return (
 		<div
-			className="flex-1 overflow-y-auto px-5 py-2 !scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent custom-scrollbar"
+			className={`${buJoWidth === "narrow" ? "max-w-2xl mx-auto w-full" : ""}flex-1 overflow-y-auto px-5 py-2 !scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent custom-scrollbar`}
 			style={{
 				scrollbarWidth: "thin",
 				scrollbarColor: "hsl(var(--border)) transparent",
@@ -1576,6 +1579,7 @@ export function CompletedList({
 	onAddLoggedActivity,
 	pamphlets,
 	activePamphletId,
+	buJoWidth,
 }: CompletedListProps) {
 	// Loading states
 	const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
@@ -1825,6 +1829,7 @@ export function CompletedList({
 						onUpdateTag={handleUpdateTag}
 						onLoadMore={handleLoadMore}
 						onExportDay={handleExportDay}
+						buJoWidth={buJoWidth!}
 					/>
 				) : completedViewType === "7days" ? (
 					<SevenDayView

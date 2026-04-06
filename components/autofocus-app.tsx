@@ -1889,6 +1889,8 @@ export function AutofocusApp() {
 		);
 	}, []);
 
+	const [buJoWidth, setBuJoWidth] = useState<"full" | "narrow">("full");
+
 	// -------------------------------------------------------------------------
 	// Render
 	// -------------------------------------------------------------------------
@@ -1946,6 +1948,8 @@ export function AutofocusApp() {
 				onCompletedViewTypeChange={setCompletedViewType}
 				contentFilter={contentFilter}
 				onChangeContentFilter={setContentFilter}
+				buJoWidth={buJoWidth}
+				onBuJoWidthChange={setBuJoWidth}
 			/>
 
 			{activeView === "tasks" && (
@@ -2019,6 +2023,7 @@ export function AutofocusApp() {
 						onAddLoggedActivity={handleAddLoggedActivity}
 						pamphlets={pamphlets}
 						activePamphletId={activePamphletId}
+						buJoWidth={buJoWidth}
 					/>
 				)}
 			</main>
