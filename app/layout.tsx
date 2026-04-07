@@ -11,7 +11,7 @@ import {
 } from "next/font/google";
 
 import { Analytics } from "@vercel/analytics/next";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/shared/theme-provider";
 import "@/app/globals.css";
 
 const geistMono = Geist_Mono({

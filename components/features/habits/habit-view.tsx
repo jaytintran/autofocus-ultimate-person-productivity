@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useHabits } from "@/hooks/use-habits";
-import type { Habit, HabitStatus } from "@/lib/habits";
+import { useHabits } from "@/hooks/data/use-habits";
+import type { Habit, HabitStatus } from "@/lib/db/habits";
 import {
 	getStreak,
 	getWeeklyProgress,
 	getLast66Days,
 	getToday,
 	isCompletedOn,
-} from "@/lib/habits";
+} from "@/lib/db/habits";
 import {
 	Dialog,
 	DialogContent,

@@ -4,7 +4,7 @@
 // IMPORTS
 // =============================================================================
 
-import { useUserId } from "@/hooks/use-user-id";
+import { useUserId } from "@/hooks/state/use-user-id";
 
 // React & Core
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -14,14 +14,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import useSWR from "swr";
 
 // Components
-import { Header } from "./header";
-import { TimerBar } from "./timer-bar";
-import { ViewTabs } from "./view-tabs";
-import { PageNav } from "./page-nav";
-import { TaskList } from "./task-list";
-import { CompletedList } from "./completed-list";
-import { TaskInput } from "./task-input";
-import { PamphletSwitcher } from "./pamphlet-switcher";
+import { Header } from "@/components/layout/header";
+import { TimerBar } from "@/components/features/timer/timer-bar";
+import { ViewTabs } from "@/components/layout/view-tabs";
+import { PageNav } from "@/components/layout/page-nav";
+import { TaskList } from "@/components/features/tasks/task-list";
+import { CompletedList } from "@/components/features/tasks/completed-list";
+import { TaskInput } from "@/components/features/tasks/task-input";
+import { PamphletSwitcher } from "@/components/layout/pamphlet-switcher";
 
 // Store & Types
 import {
@@ -48,8 +48,8 @@ import {
 	updateTaskTag,
 	revertTask,
 	createAndCompleteTask,
-} from "@/lib/store";
-import { moveTaskToPamphlet } from "@/lib/store";
+} from "@/lib/db/store";
+import { moveTaskToPamphlet } from "@/lib/db/store";
 
 import type {
 	Task,
@@ -60,12 +60,15 @@ import type {
 	TaskPlacement,
 	TaskReorderUpdate,
 } from "@/lib/types";
-import { type CompletedSortKey, type CompletedViewType } from "./view-tabs";
+import {
+	type CompletedSortKey,
+	type CompletedViewType,
+} from "@/components/layout/view-tabs";
 import { TAG_DEFINITIONS, TagId } from "@/lib/tags";
 import {
 	applyContentFilter,
 	type ContentFilterState,
-} from "@/lib/content-filter";
+} from "@/lib/features/content-filter";
 
 // Utilities & Hooks
 import {
@@ -81,12 +84,12 @@ import {
 	formatTimeCompact,
 	getTaskAge,
 } from "@/lib/utils/time-utils";
-import { invalidatePamphletCache } from "@/lib/pamphlet-cache";
+import { invalidatePamphletCache } from "@/lib/db/pamphlet-cache";
 
-import { usePamphlets } from "@/hooks/use-pamphlets";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useHabits } from "@/hooks/use-habits";
-import { HabitGrid } from "./habit-grid";
+import { usePamphlets } from "@/hooks/data/use-pamphlets";
+import { useDebouncedValue } from "@/hooks/state/use-debounced-value";
+import { useHabits } from "@/hooks/data/use-habits";
+import { HabitGrid } from "@/components/features/habits/habit-grid";
 import { createClient } from "@/lib/supabase/client";
 
 // =============================================================================

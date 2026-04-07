@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useProjects } from "@/hooks/use-projects";
-import type { Project, ProjectStatus } from "@/lib/projects";
+import { useProjects } from "@/hooks/data/use-projects";
+import type { Project, ProjectStatus } from "@/lib/db/projects";
 import {
 	Dialog,
 	DialogContent,

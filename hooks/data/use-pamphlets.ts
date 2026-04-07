@@ -11,18 +11,18 @@ import {
 	updatePamphlet,
 	deletePamphlet,
 	reassignPamphletTasks,
-} from "@/lib/store";
+} from "@/lib/db/store";
 import {
 	getActivePamphletId,
 	setActivePamphletId,
 	getCachedTasks,
 	setCachedTasks,
 	invalidatePamphletCache,
-} from "@/lib/pamphlet-cache";
+} from "@/lib/db/pamphlet-cache";
 import type { Task, Pamphlet, PamphletColor } from "@/lib/types";
-import { reorderPamphlets } from "@/lib/store";
+import { reorderPamphlets } from "@/lib/db/store";
 
-import { useUserId } from "./use-user-id";
+import { useUserId } from "@/hooks/state/use-user-id";
 
 export function usePamphlets() {
 	const userId = useUserId();

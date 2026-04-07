@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useBooks } from "@/hooks/use-books";
-import type { Book, BookStatus, BookPriority } from "@/lib/books";
+import { useBooks } from "@/hooks/data/use-books";
+import type { Book, BookStatus, BookPriority } from "@/lib/db/books";
 import {
 	Dialog,
 	DialogContent,

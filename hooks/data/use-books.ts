@@ -5,10 +5,10 @@ import {
 	addBook,
 	deleteBook,
 	type Book,
-} from "@/lib/books";
+} from "@/lib/db/books";
 import { useCallback } from "react";
-import { useUserId } from "./use-user-id";
-import { getBooksCache, setBooksCache } from "./use-books-cache";
+import { useUserId } from "@/hooks/state/use-user-id";
+import { getBooksCache, setBooksCache } from "@/hooks/data/use-books-cache";
 
 export function useBooks() {
 	const userId = useUserId();

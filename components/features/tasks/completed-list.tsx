@@ -30,12 +30,12 @@ import {
 	type TagId as TagIdType,
 } from "@/lib/tags";
 import { formatTimeCompact } from "@/lib/utils/time-utils";
-import { TagPill } from "./tag-pill";
+import { TagPill } from "@/components/shared/tag-pill";
 import type { Pamphlet, Task } from "@/lib/types";
 import type { TagId } from "@/lib/tags";
-import type { CompletedSortKey } from "./view-tabs";
-import type { CompletedViewType } from "./view-tabs";
-import type { ContentFilterState } from "@/lib/content-filter";
+import type { CompletedSortKey } from "@/components/layout/view-tabs";
+import type { CompletedViewType } from "@/components/layout/view-tabs";
+import type { ContentFilterState } from "@/lib/features/content-filter";
 
 import {
 	Dialog,
@@ -45,7 +45,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { useCollapsedTimeBlocks } from "@/hooks/use-collapsed-time-blocks";
+import { useCollapsedTimeBlocks } from "@/hooks/ui/use-collapsed-time-blocks";
 
 // =============================================================================
 // TYPES & INTERFACES

@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Flame, Check } from "lucide-react";
-import type { Habit } from "@/lib/habits";
+import type { Habit } from "@/lib/db/habits";
 import {
 	getStreak,
 	getToday,
 	isCompletedOn,
 	getWeeklyProgress,
-} from "@/lib/habits";
+} from "@/lib/db/habits";
 
 function getLast7Days(): string[] {
 	return Array.from({ length: 7 }, (_, i) => {

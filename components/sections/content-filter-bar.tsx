@@ -5,7 +5,7 @@ import type {
 	ContentFilterOption,
 	ContentFilterPreset,
 	ContentFilterState,
-} from "@/lib/content-filter";
+} from "@/lib/features/content-filter";
 import {
 	Popover,
 	PopoverContent,

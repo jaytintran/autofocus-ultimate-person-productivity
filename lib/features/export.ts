@@ -2,19 +2,19 @@ import {
 	getTasks,
 	getCompletedTasks,
 	getCompletedTasksCount,
-} from "@/lib/store";
+} from "@/lib/db/store";
 import {
 	getHabits,
 	getLast66Days,
 	getStreak,
 	getWeeklyProgress,
-} from "@/lib/habits";
-import { getProjects } from "@/lib/projects";
-import { getBooks } from "@/lib/books";
+} from "@/lib/db/habits";
+import { getProjects } from "@/lib/db/projects";
+import { getBooks } from "@/lib/db/books";
 import type { Task } from "@/lib/types";
-import type { Habit } from "@/lib/habits";
-import type { Project } from "@/lib/projects";
-import type { Book } from "@/lib/books";
+import type { Habit } from "@/lib/db/habits";
+import type { Project } from "@/lib/db/projects";
+import type { Book } from "@/lib/db/books";
 
 export type ExportFormat = "json" | "csv" | "markdown";
 

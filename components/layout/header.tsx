@@ -2,12 +2,12 @@
 
 import { Settings, BookOpen, X, Folder, Flame } from "lucide-react";
 import { useState } from "react";
-import { AboutSection } from "./about-section";
-import { SettingsModal } from "./settings-modal";
+import { AboutSection } from "@/components/sections/about-section";
+import { SettingsModal } from "@/components/sections/settings-modal";
 
-import { BookView } from "./book-view";
-import { ProjectView } from "./project-view";
-import { HabitView } from "./habit-view";
+import { BookView } from "@/components/features/books/book-view";
+import { ProjectView } from "@/components/features/projects/project-view";
+import { HabitView } from "@/components/features/habits/habit-view";
 
 export function Header() {
 	const [showSettings, setShowSettings] = useState(false);

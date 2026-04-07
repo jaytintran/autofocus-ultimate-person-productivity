@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Task, AppState, TaskStatus, Pamphlet } from "@/lib/types";
 import { TagId } from "@/lib/tags";
-import type { PamphletColor } from "@/lib/pamphlet-colors";
+import type { PamphletColor } from "@/lib/features/pamphlet-colors";
 
 const APP_STATE_ID = "00000000-0000-0000-0000-000000000001";
 

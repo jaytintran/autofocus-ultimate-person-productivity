@@ -21,8 +21,8 @@ import {
 	formatDueDate,
 	parseDueDateShortcut,
 } from "@/lib/utils/due-date-parser";
-import { PAMPHLET_COLORS } from "@/lib/pamphlet-colors";
-import { TagPill } from "./tag-pill";
+import { PAMPHLET_COLORS } from "@/lib/features/pamphlet-colors";
+import { TagPill } from "@/components/shared/tag-pill";
 import {
 	Collapsible,
 	CollapsibleContent,

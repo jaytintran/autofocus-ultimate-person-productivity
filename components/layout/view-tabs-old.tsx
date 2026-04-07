@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import type { TagId } from "@/lib/tags";
-import type { ContentFilterState } from "@/lib/content-filter";
-import { TagFilter } from "./tag-filter";
-import { BacklogDump } from "./backlog-dump";
-import { ContentFilterBar } from "./content-filter-bar";
+import type { ContentFilterState } from "@/lib/features/content-filter";
+import { TagFilter } from "@/components/shared/tag-filter";
+import { BacklogDump } from "@/components/sections/backlog-dump";
+import { ContentFilterBar } from "@/components/sections/content-filter-bar";
 import {
 	Popover,
 	PopoverContent,

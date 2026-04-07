@@ -5,9 +5,9 @@ import {
 	addProject,
 	deleteProject,
 	type Project,
-} from "@/lib/projects";
+} from "@/lib/db/projects";
 import { useCallback } from "react";
-import { useUserId } from "./use-user-id";
+import { useUserId } from "@/hooks/state/use-user-id";
 
 const CACHE_KEY = "af4_projects_cache";
 

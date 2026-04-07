@@ -8,9 +8,9 @@ import {
 	getToday,
 	type Habit,
 	reorderHabits,
-} from "@/lib/habits";
+} from "@/lib/db/habits";
 import { useCallback } from "react";
-import { useUserId } from "./use-user-id";
+import { useUserId } from "@/hooks/state/use-user-id";
 
 const CACHE_KEY = "af4_habits_cache";
 

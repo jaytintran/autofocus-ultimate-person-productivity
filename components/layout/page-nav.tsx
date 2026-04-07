@@ -31,7 +31,7 @@ import Link from "next/link";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { TAG_DEFINITIONS, type TagId } from "@/lib/tags";
 import type { Pamphlet } from "@/lib/types";
-import { PAMPHLET_COLORS } from "@/lib/pamphlet-colors";
+import { PAMPHLET_COLORS } from "@/lib/features/pamphlet-colors";
 
 const NOTION_PAGES = [
 	{

@@ -11,7 +11,7 @@ import {
 	History,
 } from "lucide-react";
 import type { Pamphlet, Task } from "@/lib/types";
-import { updateTask } from "@/lib/store";
+import { updateTask } from "@/lib/db/store";
 import {
 	formatTimeCompact,
 	getTaskAge,
@@ -47,14 +47,14 @@ import {
 } from "@dnd-kit/sortable";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { TagPicker } from "./tag-picker";
-import { TagPill } from "./tag-pill";
-import { TagFilter } from "./tag-filter";
-import { updateTaskTag } from "@/lib/store";
+import { TagPicker } from "@/components/shared/tag-picker";
+import { TagPill } from "@/components/shared/tag-pill";
+import { TagFilter } from "@/components/shared/tag-filter";
+import { updateTaskTag } from "@/lib/db/store";
 import type { TagId } from "@/lib/tags";
-import { TaskContextMenu } from "./task-context-menu";
-import { useLongPress } from "@/hooks/use-long-press";
-import { DueDatePicker } from "./due-date-picker";
+import { TaskContextMenu } from "@/components/features/tasks/task-context-menu";
+import { useLongPress } from "@/hooks/ui/use-long-press";
+import { DueDatePicker } from "@/components/shared/due-date-picker";
 
 function useIsMobile() {
 	const [isMobile, setIsMobile] = useState(false);

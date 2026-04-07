@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { PAMPHLET_COLORS, PAMPHLET_COLOR_LIST } from "@/lib/pamphlet-colors";
+import { PAMPHLET_COLORS, PAMPHLET_COLOR_LIST } from "@/lib/features/pamphlet-colors";
 import type { Pamphlet, PamphletColor } from "@/lib/types";
 
-import { useLongPress } from "@/hooks/use-long-press";
+import { useLongPress } from "@/hooks/ui/use-long-press";
 import { createPortal } from "react-dom";
 
 import { Plus, Pencil, Trash2, Check, X, GripVertical } from "lucide-react";

@@ -6,7 +6,7 @@ import { Play, Check, RefreshCw, Trash2, Tag, ArrowRight } from "lucide-react";
 import type { Task, Pamphlet } from "@/lib/types";
 import type { TagId } from "@/lib/tags";
 import { TAG_DEFINITIONS } from "@/lib/tags";
-import { PAMPHLET_COLORS } from "@/lib/pamphlet-colors";
+import { PAMPHLET_COLORS } from "@/lib/features/pamphlet-colors";
 
 interface TaskContextMenuProps {
 	task: Task;

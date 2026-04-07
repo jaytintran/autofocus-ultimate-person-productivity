@@ -1,5 +1,5 @@
-import { AutofocusApp } from '@/components/autofocus-app'
+import { AutofocusApp } from "@/components/shared/autofocus-app";
 
 export default function Home() {
-  return <AutofocusApp />
+	return <AutofocusApp />;
 }

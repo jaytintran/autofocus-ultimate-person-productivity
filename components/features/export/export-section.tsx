@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
-import { exportTasks, exportSuite, type ExportFormat } from "@/lib/export";
+import { exportTasks, exportSuite, type ExportFormat } from "@/lib/features/export";
 
 export function ExportSection() {
 	const [format, setFormat] = useState<ExportFormat>("json");
