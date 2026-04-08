@@ -12,7 +12,9 @@ import {
 	useDraggable,
 	useDroppable,
 	pointerWithin,
+	TouchSensor,
 } from "@dnd-kit/core";
+
 import { format, isSameDay, addMinutes, isToday, addDays } from "date-fns";
 import type { Task, TimeBlock } from "@/lib/types";
 import {
@@ -206,10 +208,12 @@ function DraggableTaskItem({
 	task,
 	isOverlay = false,
 	onStart,
+	onTapAssign,
 }: {
 	task: Task;
 	isOverlay?: boolean;
 	onStart?: (task: Task) => void;
+	onTapAssign?: (task: Task) => void;
 }) {
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
 		id: task.id,
@@ -226,16 +230,20 @@ function DraggableTaskItem({
 			{...attributes}
 			{...listeners}
 			style={{ opacity: isDragging ? 0.35 : 1, touchAction: "none" }}
+			onClick={() => {
+				const isTouch = window.matchMedia("(pointer: coarse)").matches;
+				if (isTouch && onTapAssign) onTapAssign(task);
+			}}
 			className={`
-        group flex items-center gap-2 p-2 rounded-md border text-sm
-        cursor-grab active:cursor-grabbing select-none
-        ${
-					isOverlay
-						? "shadow-xl bg-background border-[#8b9a6b]"
-						: "bg-card hover:bg-accent/50 border-border"
-				}
-        ${isCompleted ? "opacity-60" : ""}
-      `}
+        		group flex items-center gap-2 p-2 rounded-md border text-sm
+        		cursor-grab active:cursor-grabbing select-none
+			${
+				isOverlay
+					? "shadow-xl bg-background border-[#8b9a6b]"
+					: "bg-card hover:bg-accent/50 border-border"
+			}
+        	${isCompleted ? "opacity-60" : ""}
+      		`}
 		>
 			<GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
 			<div className="flex-1 min-w-0">
@@ -284,6 +292,8 @@ function TimeBlockCard({
 	onSelect,
 	onDragBlockStart,
 	onDragBlockEnd,
+	onAssignPendingTask,
+	pendingTask,
 	column,
 	totalColumns,
 }: {
@@ -296,9 +306,12 @@ function TimeBlockCard({
 	onSelect: (blockId: string) => void;
 	onDragBlockStart: () => void;
 	onDragBlockEnd: () => void;
+	onAssignPendingTask: (block: TimeBlock) => void;
+	pendingTask: Task | null;
 	column: number;
 	totalColumns: number;
 }) {
+	const [isPressing, setIsPressing] = useState(false);
 	const resizeStartRef = useRef<{
 		y: number;
 		endMinutes: number;
@@ -612,18 +625,33 @@ function TimeBlockCard({
 				height: Math.max(position.height, 36),
 				backgroundColor: blockColor,
 				opacity: isOver ? 0.85 : movingTopMinutes !== null ? 0.85 : 1,
-				outline: isOver ? "2px solid var(--af4-highlight)" : "none",
+				outline:
+					isOver || pendingTask ? "2px solid rgba(255,255,255,0.6)" : "none",
 				transition:
-					movingTopMinutes !== null ? "none" : "opacity 120ms, outline 120ms",
+					movingTopMinutes !== null
+						? "none"
+						: "opacity 120ms, outline 120ms, transform 150ms",
 				zIndex: movingTopMinutes !== null ? 20 : "auto",
 				boxShadow:
 					movingTopMinutes !== null ? "0 4px 20px rgba(0,0,0,0.25)" : "none",
 				left: `calc(${(column / totalColumns) * 100}% + 4px)`,
 				width: `calc(${(1 / totalColumns) * 100}% - 8px)`,
+				transform: isPressing ? "scale(1.02)" : "scale(1)",
+				ring: isPressing ? "2px solid rgba(255,255,255,0.3)" : "none",
 			}}
-			onPointerDown={handleMovePointerDown}
+			onPointerDown={(e) => {
+				setIsPressing(true);
+				handleMovePointerDown(e);
+			}}
+			onPointerUp={() => setIsPressing(false)}
+			onPointerCancel={() => setIsPressing(false)}
 			onClick={() => {
-				if (!didMoveRef.current) onSelect(block.id);
+				if (didMoveRef.current) return;
+				if (pendingTask) {
+					onAssignPendingTask(block);
+				} else {
+					onSelect(block.id);
+				}
 			}}
 		>
 			{/* Top resize handle */}
@@ -631,12 +659,15 @@ function TimeBlockCard({
 				onPointerDown={handleTopResizeDown}
 				onClick={(e) => e.stopPropagation()}
 				className="absolute top-0 left-0 right-0 flex items-center justify-center
-             opacity-0 group-hover:opacity-100 transition-opacity cursor-ns-resize z-10"
-				style={{ height: 16 }}
+             cursor-ns-resize z-10 touch-none"
+				style={{ height: 20 }}
 			>
-				<div className="w-8 h-1 rounded-full bg-white/40" />
+				<div className="flex gap-[3px] items-center">
+					{Array.from({ length: 6 }).map((_, i) => (
+						<div key={i} className="w-1 h-1 rounded-full bg-white/50" />
+					))}
+				</div>
 			</div>
-
 			{/* Single row layout for short blocks, two-row for taller */}
 			<div
 				className={`flex items-start justify-between px-2 gap-2 h-full ${isShort ? "" : "py-1.5 flex-wrap"}`}
@@ -826,46 +857,20 @@ function TimeBlockCard({
 					</span>
 				)}
 			</div>
-
 			{/* Bottom resize handle */}
 			<div
 				onPointerDown={handleBottomResizeDown}
 				onClick={(e) => e.stopPropagation()}
 				className="absolute bottom-0 left-0 right-0 flex items-center justify-center
-             opacity-0 group-hover:opacity-100 transition-opacity cursor-ns-resize z-10"
-				style={{ height: 16 }}
+             cursor-ns-resize z-10 touch-none"
+				style={{ height: 20 }}
 			>
-				<div className="w-8 h-1 rounded-full bg-white/40" />
+				<div className="flex gap-[3px] items-center">
+					{Array.from({ length: 6 }).map((_, i) => (
+						<div key={i} className="w-1 h-1 rounded-full bg-white/50" />
+					))}
+				</div>
 			</div>
-		</div>
-	);
-}
-
-// =============================================================================
-// EMPTY SLOT
-// =============================================================================
-
-function EmptySlot({
-	hour,
-	onCreateBlock,
-}: {
-	hour: number;
-	onCreateBlock: (hour: number) => void;
-}) {
-	return (
-		<div
-			className="absolute left-0 right-0"
-			style={{ top: timeToY(hour), height: PIXELS_PER_HOUR }}
-		>
-			<button
-				onClick={() => onCreateBlock(hour)}
-				className="w-full h-full rounded border border-dashed border-border/40
-                   hover:border-[#8b9a6b]/60 hover:bg-[#8b9a6b]/5
-                   transition-colors flex items-center justify-center
-                   opacity-0 hover:opacity-100"
-			>
-				<Plus className="w-4 h-4 text-muted-foreground" />
-			</button>
 		</div>
 	);
 }
@@ -1062,6 +1067,7 @@ export function ScheduleView({
 }: ScheduleViewProps) {
 	const [activeDragTask, setActiveDragTask] = useState<Task | null>(null);
 	const [isDraggingBlock, setIsDraggingBlock] = useState(false);
+	const [pendingTask, setPendingTask] = useState<Task | null>(null);
 
 	const [mobileTab, setMobileTab] = useState<
 		"timeline" | "unscheduled" | "block"
@@ -1114,7 +1120,10 @@ export function ScheduleView({
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
-			activationConstraint: { distance: 8 },
+			activationConstraint: { distance: 8 }, // desktop: start drag after 8px move
+		}),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 250, tolerance: 5 }, // mobile: long-press 250ms
 		}),
 	);
 
@@ -1225,6 +1234,12 @@ export function ScheduleView({
 			onDragStart={handleDragStart}
 			onDragEnd={handleDragEnd}
 			collisionDetection={pointerWithin}
+			autoScroll={{
+				enabled: true,
+				threshold: { x: 0, y: 0.2 },
+				interval: 5,
+				acceleration: 10,
+			}}
 		>
 			<div className="flex flex-col h-full">
 				{/* Date nav */}
@@ -1260,6 +1275,22 @@ export function ScheduleView({
 						<Plus className="w-3 h-3" /> <span>Block</span>
 					</button>
 				</div>
+
+				{/* Pending task banner */}
+				{pendingTask && (
+					<div className="flex items-center justify-between px-4 py-2 bg-[#8b9a6b] text-white text-sm shrink-0">
+						<span>
+							Tap a block to schedule
+							<strong className="truncate">{pendingTask.text}</strong>
+						</span>
+						<button
+							onClick={() => setPendingTask(null)}
+							className="ml-2 shrink-0"
+						>
+							<X className="w-4 h-4" />
+						</button>
+					</div>
+				)}
 
 				{/* Body — min-h-0 is critical so flex children can shrink and scroll */}
 				<div className="flex flex-1 min-h-0 flex-col md:flex-row">
@@ -1352,56 +1383,63 @@ export function ScheduleView({
 										onSelect={handleSelectBlock}
 										onDragBlockStart={() => setIsDraggingBlock(true)}
 										onDragBlockEnd={() => setIsDraggingBlock(false)}
+										pendingTask={pendingTask}
+										onAssignPendingTask={async (block) => {
+											const scheduledAt = new Date(block.start_time);
+											await onScheduleTask(
+												pendingTask!.id,
+												scheduledAt.toISOString(),
+											);
+											setPendingTask(null);
+										}}
 									/>
 								))}
-
-								{/* Empty slots */}
-								{!isDraggingBlock &&
-									!activeDragTask &&
-									Array.from({ length: TOTAL_HOURS }).map((_, i) => {
-										const hour = DAY_START_HOUR + i;
-										const hasBlock = todayBlocks.some((b) => {
-											const bStart = new Date(b.start_time).getHours();
-											const bEnd = new Date(b.end_time).getHours();
-											return bStart <= hour && bEnd > hour;
-										});
-										if (hasBlock) return null;
-										return (
-											<EmptySlot
-												key={hour}
-												hour={hour}
-												onCreateBlock={handleCreateBlock}
-											/>
-										);
-									})}
 							</div>
 						</div>
 					</div>
 
-					{/* Sidebar — full width on mobile as tabs, w-80 on desktop */}
-					<div
-						className={`
-							w-full md:flex-none md:w-80 flex flex-col min-h-0 md:flex
-							${mobileTab !== "timeline" ? "flex" : "hidden"}
-							${activeDragTask ? "fixed inset-0 z-40 pointer-events-none opacity-0" : ""}
-						`}
-					>
-						{selectedBlock ? (
+					{/* Mobile bottom sheet — block detail only */}
+					{selectedBlock && (
+						<div
+							className="fixed inset-x-0 bottom-0 z-50 md:hidden flex flex-col rounded-t-2xl
+               border-t border-border bg-background shadow-2xl"
+							style={{ maxHeight: "60vh" }}
+						>
+							{/* Drag pill */}
+							<div className="flex justify-center pt-3 pb-1 shrink-0">
+								<div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+							</div>
 							<BlockDetailPanel
 								block={selectedBlock}
 								tasks={dayTasks}
 								completedTasks={dayCompletedTasks}
 								onClose={() => {
-									setMobileTab("timeline");
 									setSelectedBlockId(null);
+									setMobileTab("timeline");
 								}}
 								onStartTask={onStartTask}
 								onUnscheduleTask={onUnscheduleTask}
 								onUpdateBlock={onUpdateBlock}
 								onDeleteBlock={onDeleteBlock}
 							/>
+						</div>
+					)}
+
+					{/* Desktop sidebar */}
+					<div className="hidden md:flex flex-none w-80 flex-col min-h-0">
+						{selectedBlock ? (
+							<BlockDetailPanel
+								block={selectedBlock}
+								tasks={dayTasks}
+								completedTasks={dayCompletedTasks}
+								onClose={() => setSelectedBlockId(null)}
+								onStartTask={onStartTask}
+								onUnscheduleTask={onUnscheduleTask}
+								onUpdateBlock={onUpdateBlock}
+								onDeleteBlock={onDeleteBlock}
+							/>
 						) : (
-							<div className="w-full md:w-80 flex flex-col min-h-0 bg-card">
+							<div className="w-full flex flex-col min-h-0 bg-card">
 								<div className="p-4 border-b border-border shrink-0">
 									<h3 className="font-medium">Unscheduled</h3>
 									<p className="text-sm text-muted-foreground">
@@ -1419,12 +1457,51 @@ export function ScheduleView({
 												key={task.id}
 												task={task}
 												onStart={onStartTask}
+												onTapAssign={(task) => {
+													setPendingTask(task);
+													setMobileTab("timeline");
+												}}
 											/>
 										))
 									)}
 								</div>
 							</div>
 						)}
+					</div>
+
+					{/* Mobile unscheduled panel */}
+					<div
+						className={`
+    w-full flex flex-col min-h-0 md:hidden
+    ${mobileTab === "unscheduled" && !selectedBlock ? "flex" : "hidden"}
+    ${activeDragTask ? "pointer-events-none opacity-0" : ""}
+  `}
+					>
+						<div className="p-4 border-b border-border shrink-0">
+							<h3 className="font-medium">Unscheduled</h3>
+							<p className="text-sm text-muted-foreground">
+								{unscheduledTasks.length} tasks • Tap to schedule
+							</p>
+						</div>
+						<div className="flex-1 overflow-y-auto p-3 space-y-2">
+							{unscheduledTasks.length === 0 ? (
+								<p className="text-sm text-muted-foreground text-center py-8">
+									All tasks scheduled! 🎉
+								</p>
+							) : (
+								unscheduledTasks.map((task) => (
+									<DraggableTaskItem
+										key={task.id}
+										task={task}
+										onStart={onStartTask}
+										onTapAssign={(task) => {
+											setPendingTask(task);
+											setMobileTab("timeline");
+										}}
+									/>
+								))
+							)}
+						</div>
 					</div>
 				</div>
 
