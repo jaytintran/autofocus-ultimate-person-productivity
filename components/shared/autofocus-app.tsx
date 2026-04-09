@@ -198,10 +198,10 @@ export function AutofocusApp() {
 		reorderPamphletsList,
 	} = usePamphlets();
 
-	const [activeView, setActiveView] = useState<
-		"tasks" | "completed" | "schedule"
-	>("tasks");
+	const [activeView, setActiveView] = useState<"tasks" | "completed">("tasks");
 	const [habitsViewActive, setHabitsViewActive] = useState(false);
+	const [scheduleViewActive, setScheduleViewActive] = useState(false);
+
 	const {
 		habits,
 		handleToggleToday: handleToggleHabit,
@@ -267,13 +267,20 @@ export function AutofocusApp() {
 	}, [pamphletActiveTasks]);
 
 	useEffect(() => {
-		if (activeView !== "schedule") return;
+		if (!scheduleViewActive) return;
 		setIsLoadingBlocks(true);
 		getTimeBlocksForDate(scheduleDate)
 			.then(setTimeBlocks)
 			.catch(console.error)
 			.finally(() => setIsLoadingBlocks(false));
-	}, [scheduleDate, activeView]);
+	}, [scheduleDate, scheduleViewActive]);
+
+	useEffect(() => {
+		if (activeView !== "tasks") {
+			setScheduleViewActive(false);
+			setHabitsViewActive(false);
+		}
+	}, [activeView]);
 
 	const mutateActive = useCallback(async () => {
 		await invalidateAndRefetch();
@@ -2050,18 +2057,42 @@ export function AutofocusApp() {
 					onRefreshAchievements={mutateAchievements}
 					pamphlets={pamphlets}
 					habitsViewActive={habitsViewActive}
-					onToggleHabitsView={() => setHabitsViewActive((v) => !v)}
+					onToggleHabitsView={() => {
+						setHabitsViewActive((v) => !v);
+						setScheduleViewActive(false);
+					}}
 					activeHabitCount={activeHabitCount}
 					selectedTags={selectedTags}
 					onToggleTag={handleToggleTag}
+					scheduleViewActive={scheduleViewActive}
+					onToggleScheduleView={() => {
+						setScheduleViewActive((v) => !v);
+						setHabitsViewActive(false);
+					}}
 				/>
 			)}
 
 			<main
-				className={`flex-1 flex flex-col min-h-0 ${activeView !== "schedule" ? "pb-24" : ""}`}
+				className={`flex-1 flex flex-col min-h-0 ${scheduleViewActive ? "" : "pb-24"}`}
 			>
 				{activeView === "tasks" &&
-					(habitsViewActive ? (
+					(scheduleViewActive ? (
+						<div className="flex-1 min-h-0 h-full overflow-hidden">
+							<ScheduleView
+								date={scheduleDate}
+								timeBlocks={timeBlocks}
+								tasks={displayedActiveTasks}
+								completedTasks={filteredCompletedTasks}
+								onScheduleTask={handleScheduleTask}
+								onUnscheduleTask={handleUnscheduleTask}
+								onCreateBlock={handleCreateBlock}
+								onUpdateBlock={handleUpdateBlock}
+								onDeleteBlock={handleDeleteBlock}
+								onStartTask={handleStartTask}
+								onDateChange={setScheduleDate}
+							/>
+						</div>
+					) : habitsViewActive ? (
 						<div className="flex-1 overflow-y-auto min-h-0">
 							<HabitGrid
 								habits={habits}
@@ -2114,27 +2145,9 @@ export function AutofocusApp() {
 						buJoWidth={buJoWidth}
 					/>
 				)}
-
-				{activeView === "schedule" && (
-					<div className="flex-1 min-h-0 h-full overflow-hidden">
-						<ScheduleView
-							date={scheduleDate}
-							timeBlocks={timeBlocks}
-							tasks={displayedActiveTasks} // all active, not just current page
-							completedTasks={filteredCompletedTasks}
-							onScheduleTask={handleScheduleTask}
-							onUnscheduleTask={handleUnscheduleTask}
-							onCreateBlock={handleCreateBlock}
-							onUpdateBlock={handleUpdateBlock}
-							onDeleteBlock={handleDeleteBlock}
-							onStartTask={handleStartTask}
-							onDateChange={setScheduleDate} // so the view can navigate days
-						/>
-					</div>
-				)}
 			</main>
 
-			{activeView === "tasks" && (
+			{activeView === "tasks" && !scheduleViewActive && (
 				<>
 					<TaskInput onAddTask={handleAddTask} selectedTags={selectedTags} />
 				</>

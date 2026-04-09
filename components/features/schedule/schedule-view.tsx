@@ -28,7 +28,17 @@ import {
 	X,
 	Play,
 	Pencil,
+	Search,
 } from "lucide-react";
+
+function useDebounce<T>(value: T, delay: number): T {
+	const [debounced, setDebounced] = useState<T>(value);
+	useEffect(() => {
+		const timer = setTimeout(() => setDebounced(value), delay);
+		return () => clearTimeout(timer);
+	}, [value, delay]);
+	return debounced;
+}
 
 // =============================================================================
 // TYPES
@@ -527,18 +537,35 @@ function TimeBlockCard({
 	const isShort = position.height < 48;
 
 	const handleBottomResizeDown = (e: React.PointerEvent) => {
-		e.preventDefault();
 		e.stopPropagation();
-		onDragBlockStart();
+		const startY = e.clientY;
+		const startX = e.clientX;
+		let resizeCommitted = false;
 
 		const blockEnd = new Date(block.end_time);
 		resizeStartRef.current = {
-			y: e.clientY,
+			y: startY,
 			endMinutes: blockEnd.getHours() * 60 + blockEnd.getMinutes(),
 		};
 
 		const onMove = (ev: PointerEvent) => {
 			if (!resizeStartRef.current) return;
+
+			if (!resizeCommitted) {
+				const deltaY = Math.abs(ev.clientY - startY);
+				const deltaX = Math.abs(ev.clientX - startX);
+				if (deltaY < 6) return;
+				if (deltaX > deltaY) {
+					resizeStartRef.current = null;
+					window.removeEventListener("pointermove", onMove);
+					window.removeEventListener("pointerup", onUp);
+					return;
+				}
+				resizeCommitted = true;
+				ev.preventDefault();
+				onDragBlockStart();
+			}
+
 			const deltaY = ev.clientY - resizeStartRef.current.y;
 			const rawDelta = deltaY / PIXELS_PER_MINUTE;
 			const snapped = Math.round(rawDelta / SNAP_MINUTES) * SNAP_MINUTES;
@@ -552,7 +579,12 @@ function TimeBlockCard({
 		};
 
 		const onUp = (ev: PointerEvent) => {
-			if (!resizeStartRef.current) return;
+			if (!resizeStartRef.current || !resizeCommitted) {
+				resizeStartRef.current = null;
+				window.removeEventListener("pointermove", onMove);
+				window.removeEventListener("pointerup", onUp);
+				return;
+			}
 			const deltaY = ev.clientY - resizeStartRef.current.y;
 			const rawDelta = deltaY / PIXELS_PER_MINUTE;
 			const snapped = Math.round(rawDelta / SNAP_MINUTES) * SNAP_MINUTES;
@@ -580,18 +612,35 @@ function TimeBlockCard({
 	};
 
 	const handleTopResizeDown = (e: React.PointerEvent) => {
-		e.preventDefault();
 		e.stopPropagation();
-		onDragBlockStart();
+		const startY = e.clientY;
+		const startX = e.clientX;
+		let resizeCommitted = false;
 
 		const blockStart = new Date(block.start_time);
 		resizeTopStartRef.current = {
-			y: e.clientY,
+			y: startY,
 			startMinutes: blockStart.getHours() * 60 + blockStart.getMinutes(),
 		};
 
 		const onMove = (ev: PointerEvent) => {
 			if (!resizeTopStartRef.current) return;
+
+			if (!resizeCommitted) {
+				const deltaY = Math.abs(ev.clientY - startY);
+				const deltaX = Math.abs(ev.clientX - startX);
+				if (deltaY < 6) return;
+				if (deltaX > deltaY) {
+					resizeTopStartRef.current = null;
+					window.removeEventListener("pointermove", onMove);
+					window.removeEventListener("pointerup", onUp);
+					return;
+				}
+				resizeCommitted = true;
+				ev.preventDefault();
+				onDragBlockStart();
+			}
+
 			const deltaY = ev.clientY - resizeTopStartRef.current.y;
 			const rawDelta = deltaY / PIXELS_PER_MINUTE;
 			const snapped = Math.round(rawDelta / SNAP_MINUTES) * SNAP_MINUTES;
@@ -605,7 +654,12 @@ function TimeBlockCard({
 		};
 
 		const onUp = (ev: PointerEvent) => {
-			if (!resizeTopStartRef.current) return;
+			if (!resizeTopStartRef.current || !resizeCommitted) {
+				resizeTopStartRef.current = null;
+				window.removeEventListener("pointermove", onMove);
+				window.removeEventListener("pointerup", onUp);
+				return;
+			}
 			const deltaY = ev.clientY - resizeTopStartRef.current.y;
 			const rawDelta = deltaY / PIXELS_PER_MINUTE;
 			const snapped = Math.round(rawDelta / SNAP_MINUTES) * SNAP_MINUTES;
@@ -646,23 +700,32 @@ function TimeBlockCard({
 		e.preventDefault();
 		didMoveRef.current = false;
 
-		const LONG_PRESS_MS = 200;
-
-		// Capture initial pointer position for move handlers
+		const LONG_PRESS_MS = 500;
 		const startClientY = e.clientY;
+		const startClientX = e.clientX;
 
 		const cancel = () => {
 			clearTimeout(timer);
 			window.removeEventListener("pointerup", cancel);
 			window.removeEventListener("pointercancel", cancel);
+			window.removeEventListener("pointermove", cancelOnScroll);
+		};
+
+		const cancelOnScroll = (ev: PointerEvent) => {
+			const deltaY = Math.abs(ev.clientY - startClientY);
+			const deltaX = Math.abs(ev.clientX - startClientX);
+			if (deltaY > 8 && deltaY > deltaX) {
+				cancel();
+			}
 		};
 
 		const timer = setTimeout(() => {
-			setIsPressing(true);
-			didLongPressRef.current = true;
-			// Clean up the cancel listeners — long press confirmed
 			window.removeEventListener("pointerup", cancel);
 			window.removeEventListener("pointercancel", cancel);
+			window.removeEventListener("pointermove", cancelOnScroll);
+
+			setIsPressing(true);
+			didLongPressRef.current = true;
 
 			const blockStart = new Date(block.start_time);
 			const blockEnd = new Date(block.end_time);
@@ -692,7 +755,6 @@ function TimeBlockCard({
 						moveStartRef.current.startMinutes + snapped,
 					),
 				);
-				// Direct DOM — no re-render
 				if (blockDivRef.current) {
 					blockDivRef.current.style.top = `${newStart * PIXELS_PER_MINUTE}px`;
 				}
@@ -734,24 +796,24 @@ function TimeBlockCard({
 				});
 
 				moveStartRef.current = null;
-				setMovingTopMinutes(null);
 				onDragBlockEnd();
 				didMoveRef.current = false;
 				setTimeout(() => {
 					didLongPressRef.current = false;
 				}, 0);
+				setIsPressing(false);
 
 				window.removeEventListener("pointermove", onMove);
 				window.removeEventListener("pointerup", onUp);
 			};
 
-			// Register move listeners AFTER long press confirmed
 			window.addEventListener("pointermove", onMove);
 			window.addEventListener("pointerup", onUp);
 		}, LONG_PRESS_MS);
 
 		window.addEventListener("pointerup", cancel);
 		window.addEventListener("pointercancel", cancel);
+		window.addEventListener("pointermove", cancelOnScroll);
 	};
 
 	useEffect(() => {
@@ -799,6 +861,8 @@ function TimeBlockCard({
 				width: `calc(${(1 / totalColumns) * 100}% - 8px)`,
 				transform: isPressing ? "scale(1.02)" : "scale(1)",
 				touchAction: "none",
+				userSelect: "none",
+				WebkitUserSelect: "none",
 			}}
 			onPointerDown={(e) => {
 				handleMovePointerDown(e);
@@ -1311,6 +1375,12 @@ export function ScheduleView({
 		}
 	}, []);
 
+	const handleLabelsScroll = useCallback(() => {
+		if (labelsScrollRef.current && timelineScrollRef.current) {
+			timelineScrollRef.current.scrollTop = labelsScrollRef.current.scrollTop;
+		}
+	}, []);
+
 	// Close panel if selected block gets deleted
 	useEffect(() => {
 		if (selectedBlockId && !todayBlocks.find((b) => b.id === selectedBlockId)) {
@@ -1361,6 +1431,15 @@ export function ScheduleView({
 			}),
 		[tasks, date],
 	);
+
+	const [searchQuery, setSearchQuery] = useState("");
+	const debouncedQuery = useDebounce(searchQuery, 200);
+
+	const filteredUnscheduledTasks = useMemo(() => {
+		if (!debouncedQuery.trim()) return unscheduledTasks;
+		const q = debouncedQuery.toLowerCase();
+		return unscheduledTasks.filter((t) => t.text.toLowerCase().includes(q));
+	}, [unscheduledTasks, debouncedQuery]);
 
 	const handleDragStart = useCallback((event: DragStartEvent) => {
 		const task = event.active.data.current?.task as Task | undefined;
@@ -1472,33 +1551,6 @@ export function ScheduleView({
 			}}
 		>
 			<div className="flex flex-col h-full">
-				{/* Date nav */}
-				<div className="flex items-center gap-3 px-4 py-2 border-b border-border shrink-0">
-					<button
-						onClick={() => onDateChange(addDays(date, -1))}
-						className="p-1 hover:bg-accent rounded"
-					>
-						<ChevronLeft className="w-4 h-4" />
-					</button>
-					<span className="text-sm font-medium">
-						{isToday(date) ? "Today" : format(date, "EEE, MMM d")}
-					</span>
-					<button
-						onClick={() => onDateChange(addDays(date, 1))}
-						className="p-1 hover:bg-accent rounded"
-					>
-						<ChevronRight className="w-4 h-4" />
-					</button>
-					{!isToday(date) && (
-						<button
-							onClick={() => onDateChange(new Date())}
-							className="text-xs text-muted-foreground hover:text-foreground"
-						>
-							Today
-						</button>
-					)}
-				</div>
-
 				{/* Pending task banner */}
 				{pendingTask && (
 					<div className="w-full flex items-center justify-between px-4 py-2 bg-[#8b9a6b] text-white text-sm shrink-0">
@@ -1524,8 +1576,9 @@ export function ScheduleView({
 						{/* Time labels — hidden scrollbar, driven by timeline scroll */}
 						<div
 							ref={labelsScrollRef}
-							className="w-10 md:w-16 shrink-0 border-r border-border bg-muted/30"
-							style={{ overflowY: "hidden" }}
+							className="w-14 md:w-16 shrink-0 border-r border-border bg-muted/30 [&::-webkit-scrollbar]:hidden"
+							style={{ overflowY: "scroll", scrollbarWidth: "none" }}
+							onScroll={handleLabelsScroll}
 						>
 							<div style={{ height: TOTAL_HEIGHT }}>
 								{Array.from({ length: TOTAL_HOURS }).map((_, i) => {
@@ -1564,8 +1617,12 @@ export function ScheduleView({
 						{/* Scrollable timeline */}
 						<div
 							ref={timelineScrollRef}
-							className="flex-1 overflow-y-auto overflow-x-hidden"
+							className="flex-1 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full"
 							onScroll={handleTimelineScroll}
+							style={{
+								scrollbarWidth: "thin",
+								scrollbarColor: "rgba(128,128,128,0.2) transparent",
+							}}
 						>
 							<div className="relative" style={{ height: TOTAL_HEIGHT }}>
 								{/* Hour + half-hour grid lines */}
@@ -1619,13 +1676,40 @@ export function ScheduleView({
 							</div>
 						</div>
 
-						{/* Add time block button */}
-						<button
-							onClick={() => handleCreateBlock(new Date().getHours())}
-							className="absolute right-8 bottom-3 max-sm:right-3 ml-auto flex px-2 gap-1 py-1 w-fit items-center text-sm text-card rounded-[3px] bg-af4-olive hover:bg-af4-olive-muted shadow-md font-medium"
-						>
-							<Plus className="w-3 h-3" /> <span>Block</span>
-						</button>
+						{/* Floating controls — top right */}
+						<div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+							{/* Date navigator */}
+							<div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm border border-border rounded-full shadow-lg px-2 py-1">
+								<button
+									onClick={() => onDateChange(addDays(date, -1))}
+									className="p-1 hover:bg-accent rounded-full transition-colors"
+								>
+									<ChevronLeft className="w-3.5 h-3.5" />
+								</button>
+								<button
+									onClick={() =>
+										isToday(date) ? null : onDateChange(new Date())
+									}
+									className="text-xs font-medium px-2 min-w-[80px] text-center"
+								>
+									{isToday(date) ? "Today" : format(date, "EEE, MMM d")}
+								</button>
+								<button
+									onClick={() => onDateChange(addDays(date, 1))}
+									className="p-1 hover:bg-accent rounded-full transition-colors"
+								>
+									<ChevronRight className="w-3.5 h-3.5" />
+								</button>
+							</div>
+
+							{/* Add block button */}
+							<button
+								onClick={() => handleCreateBlock(new Date().getHours())}
+								className="flex items-center justify-center w-7 h-7 rounded-full bg-af4-olive hover:bg-af4-olive-muted shadow-lg text-card transition-colors"
+							>
+								<Plus className="w-3.5 h-3.5" />
+							</button>
+						</div>
 					</div>
 
 					{/* Mobile bottom sheet — block detail only */}
@@ -1673,16 +1757,43 @@ export function ScheduleView({
 								<div className="p-4 border-b border-border shrink-0">
 									<h3 className="font-medium">Unscheduled</h3>
 									<p className="text-sm text-muted-foreground">
-										{unscheduledTasks.length} tasks • Tap clock to schedule
+										{unscheduledTasks.length} Tasks • Tap Clock to Schedule
 									</p>
+
+									<div className="relative mt-2">
+										<Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+										<input
+											type="text"
+											placeholder="Search tasks..."
+											value={searchQuery}
+											onChange={(e) => setSearchQuery(e.target.value)}
+											className="w-full pl-7 pr-7 py-1.5 text-xs rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-[#8b9a6b]"
+										/>
+										{searchQuery && (
+											<button
+												onClick={() => setSearchQuery("")}
+												className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+											>
+												<X className="w-3.5 h-3.5" />
+											</button>
+										)}
+									</div>
 								</div>
-								<div className="flex-1 overflow-y-auto p-3 space-y-2">
-									{unscheduledTasks.length === 0 ? (
+								<div
+									className="flex-1 overflow-y-auto p-3 space-y-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full"
+									style={{
+										scrollbarWidth: "thin",
+										scrollbarColor: "rgba(128,128,128,0.2) transparent",
+									}}
+								>
+									{filteredUnscheduledTasks.length === 0 ? (
 										<p className="text-sm text-muted-foreground text-center py-8">
-											All tasks scheduled! 🎉
+											{debouncedQuery
+												? "No tasks match your search"
+												: "All tasks scheduled! 🎉"}
 										</p>
 									) : (
-										unscheduledTasks.map((task) => (
+										filteredUnscheduledTasks.map((task) => (
 											<SchedulableTaskItem
 												key={task.id}
 												task={task}
@@ -1710,16 +1821,37 @@ export function ScheduleView({
 						<div className="p-4 border-b border-border shrink-0">
 							<h3 className="font-medium">Unscheduled</h3>
 							<p className="text-sm text-muted-foreground">
-								{unscheduledTasks.length} tasks • Tap clock to schedule
+								{unscheduledTasks.length} Tasks • Tap Clock to Schedule
 							</p>
+
+							<div className="relative mt-2">
+								<Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+								<input
+									type="text"
+									placeholder="Search tasks..."
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									className="w-full pl-7 pr-7 py-1.5 text-xs rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-[#8b9a6b]"
+								/>
+								{searchQuery && (
+									<button
+										onClick={() => setSearchQuery("")}
+										className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+									>
+										<X className="w-3.5 h-3.5" />
+									</button>
+								)}
+							</div>
 						</div>
 						<div className="flex-1 overflow-y-auto p-3 space-y-2">
-							{unscheduledTasks.length === 0 ? (
+							{filteredUnscheduledTasks.length === 0 ? (
 								<p className="text-sm text-muted-foreground text-center py-8">
-									All tasks scheduled! 🎉
+									{debouncedQuery
+										? "No tasks match your search"
+										: "All tasks scheduled! 🎉"}
 								</p>
 							) : (
-								unscheduledTasks.map((task) => (
+								filteredUnscheduledTasks.map((task) => (
 									<SchedulableTaskItem
 										key={task.id}
 										task={task}
@@ -1734,13 +1866,12 @@ export function ScheduleView({
 							)}
 						</div>
 					</div>
-				</div>
 
-				{/* Mobile bottom tab bar — hidden on desktop */}
-				<div className="flex md:hidden border-t border-border shrink-0 bg-background">
-					<button
-						onClick={() => setMobileTab("timeline")}
-						className={`flex-1 py-3 text-xs font-medium transition-colors
+					{/* Mobile bottom tab bar — hidden on desktop */}
+					<div className="flex md:hidden border-t border-border shrink-0 bg-background">
+						<button
+							onClick={() => setMobileTab("timeline")}
+							className={`flex-1 py-3 text-xs font-medium transition-colors
 						${
 							mobileTab === "timeline"
 								? "text-foreground border-t-2 border-foreground -mt-px"
@@ -1748,28 +1879,29 @@ export function ScheduleView({
 									? "text-[#8b9a6b] animate-pulse"
 									: "text-muted-foreground"
 						}`}
-					>
-						Timeline
-						{activeDragTask && mobileTab !== "timeline" && (
-							<span className="ml-1">↑</span>
-						)}
-					</button>
-					<button
-						onClick={() => setMobileTab("unscheduled")}
-						className={`flex-1 py-3 text-xs font-medium transition-colors
+						>
+							Timeline
+							{activeDragTask && mobileTab !== "timeline" && (
+								<span className="ml-1">↑</span>
+							)}
+						</button>
+						<button
+							onClick={() => setMobileTab("unscheduled")}
+							className={`flex-1 py-3 text-xs font-medium transition-colors
 						${
 							mobileTab === "unscheduled"
 								? "text-foreground border-t-2 border-foreground -mt-px"
 								: "text-muted-foreground"
 						}`}
-					>
-						Unscheduled
-						{unscheduledTasks.length > 0 && (
-							<span className="ml-1 text-xs text-muted-foreground">
-								({unscheduledTasks.length})
-							</span>
-						)}
-					</button>
+						>
+							Unscheduled
+							{unscheduledTasks.length > 0 && (
+								<span className="ml-1 text-xs text-muted-foreground">
+									({unscheduledTasks.length})
+								</span>
+							)}
+						</button>
+					</div>
 				</div>
 			</div>
 

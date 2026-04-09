@@ -18,6 +18,7 @@ import {
 	Trophy,
 	Inbox,
 	LibraryBig,
+	Calendar,
 } from "lucide-react";
 import {
 	Dialog,
@@ -342,6 +343,8 @@ interface PageNavProps {
 	activeHabitCount: number;
 	selectedTags: Set<TagId | "none">;
 	onToggleTag: (tag: TagId | "none" | "all") => void;
+	scheduleViewActive: boolean;
+	onToggleScheduleView: () => void;
 }
 
 export function PageNav({
@@ -361,6 +364,8 @@ export function PageNav({
 	activeHabitCount,
 	selectedTags,
 	onToggleTag,
+	scheduleViewActive,
+	onToggleScheduleView,
 }: PageNavProps) {
 	const [searchOpen, setSearchOpen] = useState(false);
 	const searchInputRef = useRef<HTMLInputElement>(null);
@@ -485,6 +490,34 @@ export function PageNav({
 							<Search className="w-4 h-4" />
 						</button>
 					)}
+
+					{/* Schedule Button */}
+					<Tooltip.Provider>
+						<Tooltip.Root>
+							<Tooltip.Trigger asChild>
+								<button
+									onClick={onToggleScheduleView}
+									className={`text-xs border rounded-full p-1.75 transition-colors
+					${
+						scheduleViewActive
+							? "border-[#8b9a6b]/40 bg-[#8b9a6b]/10 text-[#8b9a6b]"
+							: "border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+					}`}
+								>
+									<Calendar className="w-4 h-4" />
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Portal>
+								<Tooltip.Content
+									side="top"
+									className="bg-foreground text-background text-xs px-2 py-1 rounded-md shadow-md"
+								>
+									Schedule
+									<Tooltip.Arrow className="fill-foreground" />
+								</Tooltip.Content>
+							</Tooltip.Portal>
+						</Tooltip.Root>
+					</Tooltip.Provider>
 
 					{/* Habits Button */}
 					<Tooltip.Provider>
