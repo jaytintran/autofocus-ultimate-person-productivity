@@ -647,7 +647,7 @@ export function AboutSection() {
 		<>
 			<button
 				onClick={() => setIsOpen(true)}
-				className="p-2 hover:bg-accent rounded-lg transition-colors text-foreground/50 hover:text-foreground/80"
+				className="p-2 hover:bg-accent rounded-lg transition-colors text-foreground/80"
 				aria-label="About Autofocus"
 				title="About Autofocus (AF4)"
 			>
@@ -666,12 +666,6 @@ export function AboutSection() {
 								System guide & documentation
 							</DialogDescription>
 						</div>
-						<button
-							onClick={() => setIsOpen(false)}
-							className="p-1.5 rounded-lg hover:bg-accent transition-colors text-foreground/40 hover:text-foreground/70"
-						>
-							<X className="w-4 h-4" />
-						</button>
 					</div>
 
 					<div className="flex flex-1 min-h-0 overflow-hidden">

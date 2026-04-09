@@ -237,6 +237,14 @@ export function AutofocusApp() {
 		useState<CompletedSortKey>("default");
 	const [completedViewType, setCompletedViewType] =
 		useState<CompletedViewType>("bullet");
+
+	const [completedSearch, setCompletedSearch] = useState("");
+	const debouncedCompletedSearch = useDebouncedValue(completedSearch, 200);
+
+	// Reset when leaving completed view
+	useEffect(() => {
+		if (activeView !== "completed") setCompletedSearch("");
+	}, [activeView]);
 	// -------------------------------------------------------------------------
 	// State - UI & Optimistic Updates
 	// -------------------------------------------------------------------------
@@ -2041,6 +2049,8 @@ export function AutofocusApp() {
 				onChangeContentFilter={setContentFilter}
 				buJoWidth={buJoWidth}
 				onBuJoWidthChange={setBuJoWidth}
+				completedSearch={completedSearch}
+				onCompletedSearchChange={setCompletedSearch}
 			/>
 
 			{activeView === "tasks" && (
@@ -2143,6 +2153,7 @@ export function AutofocusApp() {
 						pamphlets={pamphlets}
 						activePamphletId={activePamphletId}
 						buJoWidth={buJoWidth}
+						completedSearch={debouncedCompletedSearch}
 					/>
 				)}
 			</main>

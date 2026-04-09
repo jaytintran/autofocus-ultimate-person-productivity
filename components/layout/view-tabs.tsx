@@ -20,6 +20,8 @@ import {
 	PanelRightClose,
 	PanelRightOpen,
 	Calendar,
+	X,
+	Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -389,6 +391,8 @@ interface ViewTabsProps {
 	onChangeContentFilter: (filter: ContentFilterState) => void;
 	buJoWidth: "full" | "narrow";
 	onBuJoWidthChange: (w: "full" | "narrow") => void;
+	completedSearch: string;
+	onCompletedSearchChange: (q: string) => void;
 }
 
 export function ViewTabs({
@@ -405,6 +409,8 @@ export function ViewTabs({
 	onChangeContentFilter,
 	buJoWidth,
 	onBuJoWidthChange,
+	completedSearch,
+	onCompletedSearchChange,
 }: ViewTabsProps) {
 	// Calculate active filter count for badge
 	const activeFilterCount =
@@ -413,7 +419,7 @@ export function ViewTabs({
 		(activeView === "completed" && completedSort !== "default" ? 1 : 0);
 
 	return (
-		<div className="flex flex-row flex-wrap gap-2 justify-between items-center px-4 py-3">
+		<div className="relative flex flex-row flex-wrap gap-2 justify-between items-center px-4 py-3">
 			{/* Left side - Main view toggle */}
 			<div className="flex gap-2">
 				<MainViewToggle activeView={activeView} onChange={onViewChange} />
@@ -428,6 +434,28 @@ export function ViewTabs({
 					/>
 				)}
 			</div>
+
+			{/* Centered search — completed view only */}
+			{activeView === "completed" && (
+				<div className="flex items-center gap-1 bg-secondary rounded-full px-3 py-1">
+					<Search className="w-3 h-3 mr-1 text-muted-foreground shrink-0" />
+					<input
+						type="text"
+						value={completedSearch}
+						onChange={(e) => onCompletedSearchChange(e.target.value)}
+						placeholder="Search completed..."
+						className="bg-transparent border-none outline-none text-xs py-1 w-56 max-sm:w-40 text-foreground placeholder:text-muted-foreground"
+					/>
+					{completedSearch && (
+						<button
+							onClick={() => onCompletedSearchChange("")}
+							className="text-muted-foreground hover:text-foreground transition-colors"
+						>
+							<X className="w-3.5 h-3.5" />
+						</button>
+					)}
+				</div>
+			)}
 
 			{/* Right side - Filters */}
 			<div className="flex items-center gap-2">

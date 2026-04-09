@@ -77,6 +77,7 @@ interface CompletedListProps {
 	pamphlets: Pamphlet[];
 	activePamphletId?: string | null;
 	buJoWidth?: string | null;
+	completedSearch?: string;
 }
 
 interface GroupedTasks {
@@ -374,15 +375,6 @@ function getTimePeriodBadgeStyle(
 		case "evening":
 			return "border-indigo-400/30 text-indigo-400 bg-indigo-400/5";
 	}
-}
-
-function useDebounce<T>(value: T, delay: number): T {
-	const [debounced, setDebounced] = useState<T>(value);
-	useEffect(() => {
-		const timer = setTimeout(() => setDebounced(value), delay);
-		return () => clearTimeout(timer);
-	}, [value, delay]);
-	return debounced;
 }
 
 // =============================================================================
@@ -1590,14 +1582,12 @@ export function CompletedList({
 	pamphlets,
 	activePamphletId,
 	buJoWidth,
+	completedSearch,
 }: CompletedListProps) {
 	// Loading states
 	const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 	const [loadingTagTaskId, setLoadingTagTaskId] = useState<string | null>(null);
 	const [showTaskModal, setShowTaskModal] = useState<string | null>(null);
-
-	const [completedSearch, setCompletedSearch] = useState("");
-	const debouncedCompletedSearch = useDebounce(completedSearch, 200);
 
 	// Custom hooks for timeouts (with proper cleanup)
 	const { showDeleteConfirm, requestDelete, clearDelete } =
@@ -1613,12 +1603,12 @@ export function CompletedList({
 				return task.tag !== null && selectedTags.has(task.tag);
 			});
 		}
-		if (debouncedCompletedSearch.trim()) {
-			const q = debouncedCompletedSearch.toLowerCase();
+		if (completedSearch?.trim()) {
+			const q = completedSearch.toLowerCase();
 			result = result.filter((t) => t.text.toLowerCase().includes(q));
 		}
 		return result;
-	}, [tasks, selectedTags, debouncedCompletedSearch]);
+	}, [tasks, selectedTags, completedSearch]);
 
 	const groupedTasks = useMemo(() => {
 		const groups: Map<string, Task[]> = new Map();
@@ -1833,28 +1823,6 @@ export function CompletedList({
 
 	return (
 		<div className="flex-1 flex flex-col min-h-0">
-			{/* Search bar */}
-			<div className="px-4 py-2 border-b border-border shrink-0">
-				<div className="relative">
-					<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-					<input
-						type="text"
-						placeholder="Search completed..."
-						value={completedSearch}
-						onChange={(e) => setCompletedSearch(e.target.value)}
-						className="w-full pl-8 pr-8 py-1.5 text-xs rounded-md border border-input bg-background focus:outline-none focus:ring-1 focus:ring-[#8b9a6b]"
-					/>
-					{completedSearch && (
-						<button
-							onClick={() => setCompletedSearch("")}
-							className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-						>
-							<X className="w-3.5 h-3.5" />
-						</button>
-					)}
-				</div>
-			</div>
-
 			<div className="flex-1 overflow-y-auto">
 				{completedViewType === "bullet" ? (
 					<BulletJournalView
