@@ -503,10 +503,11 @@ const TaskRow = memo(function TaskRow({
 	}, [pendingTask, onSwitchTask]);
 
 	const handleContextMenu = useCallback((e: React.MouseEvent) => {
+		if (isDragging) return; // Don't show context menu while dragging
 		e.preventDefault();
 		e.stopPropagation();
 		setContextMenu({ x: e.clientX, y: e.clientY });
-	}, []);
+	}, [isDragging]);
 
 	const {
 		onTouchStart: lpStart,
@@ -514,7 +515,7 @@ const TaskRow = memo(function TaskRow({
 		onTouchMove: lpMove,
 	} = useLongPress({
 		onLongPress: (e) => {
-			if (isEditing) return;
+			if (isEditing || isDragging) return; // Don't trigger long press while dragging
 			const touch = e.touches[0];
 			setContextMenu({ x: touch.clientX, y: touch.clientY });
 		},
@@ -550,15 +551,15 @@ const TaskRow = memo(function TaskRow({
 				onContextMenu={handleContextMenu}
 				onTouchStart={(e) => {
 					lpStart(e);
-					if (isMobile && !shouldDisableSwipe) onTouchStart(e);
+					if (isMobile && !shouldDisableSwipe && !isDragging) onTouchStart(e);
 				}}
 				onTouchMove={(e) => {
 					lpMove(e);
-					if (isMobile && !shouldDisableSwipe) onTouchMove(e);
+					if (isMobile && !shouldDisableSwipe && !isDragging) onTouchMove(e);
 				}}
 				onTouchEnd={(e) => {
 					lpEnd(e);
-					if (isMobile && !shouldDisableSwipe) onTouchEnd(e);
+					if (isMobile && !shouldDisableSwipe && !isDragging) onTouchEnd(e);
 				}}
 			>
 				{/* Sliding content wrapper */}
