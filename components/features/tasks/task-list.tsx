@@ -564,7 +564,7 @@ const TaskRow = memo(function TaskRow({
 				{/* Sliding content wrapper */}
 				<div
 					ref={registerSlidingElement}
-					className="relative flex items-center gap-2 px-3 py-2.5 w-full bg-background touch-pan-y"
+					className="relative flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-3 sm:py-2.5 w-full bg-background touch-pan-y"
 					style={{ zIndex: 1 }}
 					onTouchEnd={
 						isMobile && (swipedLeft || swipedRight)
@@ -576,70 +576,73 @@ const TaskRow = memo(function TaskRow({
 							: undefined
 					}
 				>
-					{/* Drag handle */}
-					{!isWorking && !isEditing && !isDragOverlay && (
-						<button
-							{...attributes}
-							{...listeners}
-							type="button"
-							className="cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none select-none"
-							aria-label="Drag to reorder"
-						>
-							<GripVertical className="w-4 h-4 text-muted-foreground pointer-events-none" />
-						</button>
-					)}
-
-					{/* Task text / Edit input */}
-					<div className="flex-1 min-w-0 flex items-center gap-2">
-						{isEditing ? (
-							<div className="flex-1 flex items-center gap-2 min-w-0">
-								<textarea
-									ref={inputRef}
-									value={editText}
-									onChange={(e) => setEditText(e.target.value)}
-									onBlur={handleSave}
-									onKeyDown={handleKeyDown}
-									placeholder="Task text… or append !1d, !2h, !30m"
-									onClick={(e) => e.stopPropagation()}
-									className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-foreground resize-none w-full"
-								/>
-								{(() => {
-									const { dueDate } = parseDueDateShortcut(editText);
-									return dueDate ? (
-										<span className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-500 flex-shrink-0">
-											⏰ {parseDueDateShortcut(editText).dueDateLabel}
-										</span>
-									) : null;
-								})()}
-							</div>
-						) : (
-							<span
-								onClick={handleTextClick}
-								className={`wrap-break-word min-w-0 w-full cursor-text ${isWorking ? "text-[#ddd4b8]" : ""}`}
+					{/* Top row: Drag handle + Task text */}
+					<div className="flex items-center gap-2 flex-1 min-w-0">
+						{/* Drag handle */}
+						{!isWorking && !isEditing && !isDragOverlay && (
+							<button
+								{...attributes}
+								{...listeners}
+								type="button"
+								className="cursor-grab active:cursor-grabbing p-1 -ml-1 touch-none select-none"
+								aria-label="Drag to reorder"
 							>
-								{task.text}
-							</span>
+								<GripVertical className="w-4 h-4 text-muted-foreground pointer-events-none" />
+							</button>
 						)}
+
+						{/* Task text / Edit input */}
+						<div className="flex-1 min-w-0 flex items-center gap-2">
+							{isEditing ? (
+								<div className="flex-1 flex items-center gap-2 min-w-0">
+									<textarea
+										ref={inputRef}
+										value={editText}
+										onChange={(e) => setEditText(e.target.value)}
+										onBlur={handleSave}
+										onKeyDown={handleKeyDown}
+										placeholder="Task text… or append !1d, !2h, !30m"
+										onClick={(e) => e.stopPropagation()}
+										className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-foreground resize-none w-full"
+									/>
+									{(() => {
+										const { dueDate } = parseDueDateShortcut(editText);
+										return dueDate ? (
+											<span className="text-xs sm:text-[10px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-500 flex-shrink-0">
+												⏰ {parseDueDateShortcut(editText).dueDateLabel}
+											</span>
+										) : null;
+									})()}
+								</div>
+							) : (
+								<span
+									onClick={handleTextClick}
+									className={`wrap-break-word min-w-0 w-full cursor-text ${isWorking ? "text-[#ddd4b8]" : ""}`}
+								>
+									{task.text}
+								</span>
+							)}
+						</div>
 					</div>
 
-					{/* Right side badges */}
-					<div className="flex items-center gap-1.5 shrink-0">
+					{/* Bottom row (mobile) / Right side (desktop): Badges and actions */}
+					<div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
 						{/* Re-entered badge */}
 						{task.re_entered_from && !isEditing && (
-							<span className="text-[10px] px-1.5 py-0.5 rounded border border-[#c49a6b]/40 bg-[#c49a6b]/10 text-[#c49a6b] flex-shrink-0">
-								<RefreshCw className="w-2.5 h-2.5" />
+							<span className="text-xs sm:text-[10px] px-1.5 py-0.5 rounded border border-[#c49a6b]/40 bg-[#c49a6b]/10 text-[#c49a6b] flex-shrink-0">
+								<RefreshCw className="w-3 sm:w-2.5 h-3 sm:h-2.5" />
 							</span>
 						)}
 
-						{/* Due date badge */}
+						{/* Due date badge - now visible on mobile */}
 						{!isEditing && !isWorking && (
-							<div className="relative flex-shrink-0 max-sm:hidden">
+							<div className="relative flex-shrink-0">
 								<button
 									onClick={(e) => {
 										e.stopPropagation();
 										setDueDatePickerOpen((prev) => !prev);
 									}}
-									className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 ${
+									className={`text-xs sm:text-[10px] px-1.5 py-0.5 rounded border transition-colors flex-shrink-0 ${
 										task.due_date
 											? dueDateClasses
 											: "border-dashed border-muted-foreground/20 text-muted-foreground/30 hover:border-muted-foreground/50 hover:text-muted-foreground/60"
@@ -653,7 +656,7 @@ const TaskRow = memo(function TaskRow({
 									{task.due_date ? (
 										formatDueDate(task.due_date).label
 									) : (
-										<ClockAlert className="w-3 h-3" />
+										<ClockAlert className="w-3.5 sm:w-3 h-3.5 sm:h-3" />
 									)}
 								</button>
 
@@ -672,14 +675,14 @@ const TaskRow = memo(function TaskRow({
 
 						{/* Time logged badge */}
 						{task.total_time_ms > 0 && !isEditing && (
-							<span className="text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/30 bg-muted/50 text-muted-foreground flex-shrink-0">
+							<span className="text-xs sm:text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/30 bg-muted/50 text-muted-foreground flex-shrink-0">
 								{formatTimeCompact(task.total_time_ms)}
 							</span>
 						)}
 
-						{/* Age badge */}
+						{/* Age badge - hidden on mobile */}
 						{!isEditing && (
-							<div className="flex items-center justify-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/20 bg-transparent text-muted-foreground/50 flex-shrink-0">
+							<div className="hidden sm:flex items-center justify-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded border border-muted-foreground/20 bg-transparent text-muted-foreground/50 flex-shrink-0">
 								<History className="w-3 h-3" />
 								<span>{getTaskAge(task.added_at)}</span>
 							</div>
