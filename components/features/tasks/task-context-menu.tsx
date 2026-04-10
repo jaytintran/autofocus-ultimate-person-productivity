@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Play, Check, RefreshCw, Trash2, Tag, ArrowRight } from "lucide-react";
+import { Play, Check, RefreshCw, Trash2, Tag, ArrowRight, Edit } from "lucide-react";
 import type { Task, Pamphlet } from "@/lib/types";
 import type { TagId } from "@/lib/tags";
 import { TAG_DEFINITIONS } from "@/lib/tags";
@@ -24,6 +24,7 @@ interface TaskContextMenuProps {
 	onSink: (taskId: string) => void;
 	onUpdateTag: (taskId: string, tag: TagId | null) => void;
 	onMoveTask: (taskId: string, toPamphletId: string) => void;
+	onEdit?: () => void;
 }
 
 export function TaskContextMenu({
@@ -42,6 +43,7 @@ export function TaskContextMenu({
 	onSink,
 	onUpdateTag,
 	onMoveTask,
+	onEdit,
 }: TaskContextMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
 	const [openSubmenu, setOpenSubmenu] = useState<"tag" | "move" | null>(null);
@@ -64,7 +66,7 @@ export function TaskContextMenu({
 		const handleKey = (e: KeyboardEvent) => {
 			if (e.key === "Escape") onClose();
 		};
-		const handleClick = (e: MouseEvent) => {
+		const handleClick = (e: Event) => {
 			if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
 				onClose();
 			}
@@ -144,6 +146,9 @@ export function TaskContextMenu({
 				<p className="text-xs text-muted-foreground truncate">{task.text}</p>
 			</div>
 			{divider}
+
+			{onEdit && item("Edit", <Edit className="w-3.5 h-3.5" />, onEdit)}
+			{onEdit && divider}
 
 			{item("Start", <Play className="w-3.5 h-3.5" />, () => onStart(task))}
 			{item("Complete", <Check className="w-3.5 h-3.5" />, () => onDone(task))}

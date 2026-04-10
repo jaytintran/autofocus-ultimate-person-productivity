@@ -427,12 +427,12 @@ const TaskRow = memo(function TaskRow({
 
 	const handleTextClick = useCallback(
 		(e: React.MouseEvent) => {
-			if (isWorking) return;
+			if (isWorking || isMobile) return; // Disable inline edit on mobile
 			e.stopPropagation();
 			setEditText(task.text);
 			setIsEditing(true);
 		},
-		[isWorking, task.text],
+		[isWorking, isMobile, task.text],
 	);
 
 	const handleSave = useCallback(() => {
@@ -515,6 +515,11 @@ const TaskRow = memo(function TaskRow({
 		e.stopPropagation();
 		setContextMenu({ x: e.clientX, y: e.clientY });
 	}, [isDragging]);
+
+	const handleEnableEdit = useCallback(() => {
+		setEditText(task.text);
+		setIsEditing(true);
+	}, [task.text]);
 
 	const {
 		onTouchStart: lpStart,
@@ -965,6 +970,7 @@ const TaskRow = memo(function TaskRow({
 					onSink={onSinkTask}
 					onUpdateTag={onUpdateTag}
 					onMoveTask={onMoveTask}
+					onEdit={isMobile ? handleEnableEdit : undefined}
 				/>
 			)}
 
