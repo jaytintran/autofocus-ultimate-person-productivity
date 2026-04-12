@@ -542,7 +542,10 @@ function TagChipSelector({
 	useEffect(() => {
 		if (!dropdownOpen) return;
 		const handler = (e: MouseEvent) => {
-			if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+			if (
+				dropdownRef.current &&
+				!dropdownRef.current.contains(e.target as Node)
+			) {
 				setDropdownOpen(false);
 			}
 		};
@@ -659,7 +662,9 @@ function TagChipSelector({
 										<span className="flex items-center gap-2">
 											<span
 												className={`w-4 h-4 rounded border flex items-center justify-center ${
-													active ? "bg-foreground border-foreground" : "border-border"
+													active
+														? "bg-foreground border-foreground"
+														: "border-border"
 												}`}
 											>
 												{active && (
@@ -1245,12 +1250,12 @@ function DomainView({
 	return (
 		<div className="px-4 sm:px-6 py-6 pb-10 space-y-6">
 			{/* Domain header */}
-			<div className="space-y-1">
+			{/* <div className="space-y-1">
 				<h2 className="text-lg font-semibold text-foreground">{domain}</h2>
 				<p className="text-xs text-muted-foreground/60">
 					{total} {total === 1 ? "book" : "books"}
 				</p>
-			</div>
+			</div> */}
 			{total === 0 && (
 				<p className="text-sm text-muted-foreground">
 					No books match your search.
@@ -1358,7 +1363,6 @@ function BookSidebar({
 	books,
 	activeDomain,
 	onSelect,
-	onAddBook,
 	collapsed,
 	onToggleCollapse,
 	mobileOpen,
@@ -1373,7 +1377,6 @@ function BookSidebar({
 	books: Book[];
 	activeDomain: string;
 	onSelect: (d: string) => void;
-	onAddBook: () => void;
 	collapsed: boolean;
 	onToggleCollapse: () => void;
 	mobileOpen: boolean;
@@ -1541,15 +1544,15 @@ function BookSidebar({
 					</div>
 				)}
 
-				{/* Add book */}
+				{/* Add Domain Button */}
 				<button
-					onClick={onAddBook}
-					title="Add Book"
-					className={`mt-5 flex items-center px-2 py-3 justify-center gap-1 rounded-lg text-xs font-medium bg-[#8b9a6b]/10 hover:bg-[#8b9a6b]/20 text-[#8b9a6b] transition-colors
-            			${collapsed ? "w-8 h-8 justify-center" : "w-full"}`}
+					onClick={() => setAddingDomain(true)}
+					title="Add Domain"
+					className={`mt-1 flex items-center px-2 py-2.5 justify-center gap-1 rounded-lg text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors
+    				${collapsed ? "w-8 h-8" : "w-full"}`}
 				>
 					<Plus className="w-3.5 h-3.5 flex-shrink-0" />
-					{!collapsed && <span>Add Book</span>}
+					{!collapsed && <span>Add Domain</span>}
 				</button>
 			</div>
 		</div>
@@ -1652,10 +1655,10 @@ function BookSidebar({
 									)}
 								</div>
 								<button
-									onClick={onAddBook}
-									className="w-full flex items-center gap-2 px-2 py-3 justify-center rounded-lg text-xs font-medium bg-[#8b9a6b]/10 hover:bg-[#8b9a6b]/20 text-[#8b9a6b] transition-colors"
+									onClick={() => setAddingDomain(true)}
+									className="w-full flex items-center gap-2 px-2 py-2.5 justify-center rounded-lg text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 								>
-									<Plus className="w-3.5 h-3.5" /> Add Book
+									<Plus className="w-3.5 h-3.5" /> Add Domain
 								</button>
 							</div>
 						</div>
@@ -1776,7 +1779,6 @@ export function BookView() {
 					books={books}
 					activeDomain={activeDomain}
 					onSelect={(d) => setActiveDomain(d)}
-					onAddBook={() => setShowAddModal(true)}
 					collapsed={sidebarCollapsed}
 					onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
 					mobileOpen={mobileSidebarOpen}
@@ -1790,6 +1792,27 @@ export function BookView() {
 
 				{/* Main content */}
 				<div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-y-scroll">
+					{/* Header */}
+					<div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 py-3">
+						<div className="flex items-center gap-2">
+							<span className="text-xs font-semibold uppercase tracking-widest text-foreground">
+								{activeDomain === "__dashboard__" ? "Overview" : activeDomain}
+							</span>
+							{activeDomain !== "__dashboard__" && (
+								<span className="text-xs text-muted-foreground/40">
+									{domainBooks.length}{" "}
+									{domainBooks.length === 1 ? "book" : "books"}
+								</span>
+							)}
+						</div>
+						<button
+							onClick={() => setShowAddModal(true)}
+							className="flex items-center gap-1.5 text-xs font-medium px-4 py-3 rounded-[3px] bg-[#8b9a6b]/10 hover:bg-[#8b9a6b]/20 text-[#8b9a6b] transition-colors"
+						>
+							<Plus className="w-3.5 h-3.5" />
+							Add Book
+						</button>
+					</div>
 					{activeDomain === "__dashboard__" ? (
 						<DashboardView
 							books={books}

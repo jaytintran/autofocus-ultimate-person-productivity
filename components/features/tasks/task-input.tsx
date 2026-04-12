@@ -249,6 +249,10 @@ export function TaskInput({ onAddTask, selectedTags }: TaskInputProps) {
 				}
 				handleSubmit();
 			}
+			if (e.key === "/" && text === "") {
+				e.preventDefault();
+				setShowTemplates((prev) => !prev);
+			}
 			if (e.key === "Escape") {
 				setShowTemplates(false);
 				setMentionQuery(null);
