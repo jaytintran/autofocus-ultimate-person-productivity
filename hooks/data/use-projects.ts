@@ -82,7 +82,11 @@ export function useProjects() {
 
 	const handleStatusChange = useCallback(
 		async (id: string, status: Project["status"]) => {
-			await handleUpdate(id, { status });
+			const updates: Partial<Project> = { status };
+			if (status === "completed") {
+				updates.progress = 100;
+			}
+			await handleUpdate(id, updates);
 		},
 		[handleUpdate],
 	);
