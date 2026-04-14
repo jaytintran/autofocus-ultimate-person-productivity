@@ -444,10 +444,20 @@ export function ViewTabs({
 						onBuJoWidthChange={onBuJoWidthChange}
 					/>
 				)}
+			</div>
 
-				{/* Search bar — completed view only, positioned left */}
+			{/* Right side - Filters */}
+			<div className="flex items-center gap-2">
+				{/* Tasks-specific: Backlog Dump */}
+				{activeView === "tasks" && (
+					<div className="space-y-3 md:hidden">
+						<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
+					</div>
+				)}
+
+				{/* Search bar — completed view only, positioned right */}
 				{activeView === "completed" && (
-					<div className="flex items-center gap-1 bg-muted/30 rounded-lg px-3 py-1.5 h-8 border border-transparent focus-within:border-border transition-colors">
+					<div className="flex items-center gap-1 bg-muted/30 rounded-lg px-3 py-4 h-8 border border-transparent focus-within:border-border transition-colors">
 						<Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
 						<input
 							type="text"
@@ -464,16 +474,6 @@ export function ViewTabs({
 								<X className="w-3.5 h-3.5" />
 							</button>
 						)}
-					</div>
-				)}
-			</div>
-
-			{/* Right side - Filters */}
-			<div className="flex items-center gap-2">
-				{/* Tasks-specific: Backlog Dump */}
-				{activeView === "tasks" && (
-					<div className="space-y-3 md:hidden">
-						<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
 					</div>
 				)}
 
