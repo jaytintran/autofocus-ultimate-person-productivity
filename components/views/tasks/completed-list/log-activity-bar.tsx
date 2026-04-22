@@ -3,7 +3,7 @@ import { Send, Dot, X } from "lucide-react";
 import type { LogActivityBarProps } from "./types";
 import type { TagId } from "@/lib/tags";
 import { TAG_DEFINITIONS, getTagDefinition } from "@/lib/tags";
-import { parseAtTime, stripAtTime } from "./utils";
+import { parseAtTime, stripAtTime, parseAtDate, stripAtDate } from "./utils";
 
 const LogTagMentionDropdown = memo(function LogTagMentionDropdown({
 	query,
@@ -52,21 +52,20 @@ export const LogActivityBar = memo(function LogActivityBar({
 		isoString: string;
 		display: string;
 	} | null>(null);
+	const [logParsedDate, setLogParsedDate] = useState<Date | null>(null);
 	const [isSubmittingLog, setIsSubmittingLog] = useState(false);
 	const logInputRef = useRef<HTMLInputElement>(null);
-
-	const logTagDef = useMemo(
-		() => (logTag ? getTagDefinition(logTag) : null),
-		[logTag],
-	);
 
 	const handleTextChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
 			const value = e.target.value;
 			setLogText(value);
 
-			// Parse @time shortcut
-			setLogParsedTime(parseAtTime(value));
+			// Parse @date and @time shortcuts
+			const parsedDate = parseAtDate(value);
+			const parsedTime = parseAtTime(value);
+			setLogParsedDate(parsedDate);
+			setLogParsedTime(parsedTime);
 
 			const mentionMatch = value.match(/#(\w*)$/);
 			setLogMentionQuery(mentionMatch ? mentionMatch[1] : null);
@@ -99,16 +98,62 @@ export const LogActivityBar = memo(function LogActivityBar({
 		setLogText((t) => stripAtTime(t));
 	}, []);
 
+	const handleRemoveDate = useCallback(() => {
+		setLogParsedDate(null);
+		setLogText((t) => stripAtDate(t));
+	}, []);
+
+	const logTagDef = useMemo(
+		() => (logTag ? getTagDefinition(logTag) : null),
+		[logTag],
+	);
+
 	const handleSubmit = useCallback(async () => {
 		const trimmed = logText.trim();
 		if (!trimmed || isSubmittingLog) return;
 
 		let cleanText = trimmed;
 		cleanText = stripAtTime(cleanText);
+		cleanText = stripAtDate(cleanText);
 		for (const tag of TAG_DEFINITIONS) {
 			cleanText = cleanText
 				.replace(new RegExp(`#${tag.id}(\\s|$)`, "gi"), "")
 				.trim();
+		}
+
+		// Combine date and time
+		let finalTimestamp: string | null = null;
+		if (logParsedDate || logParsedTime) {
+			const baseDate = logParsedDate || new Date();
+			let finalDate: Date;
+
+			if (logParsedTime) {
+				// Parse time from the ISO string
+				const timeDate = new Date(logParsedTime.isoString);
+				finalDate = new Date(
+					baseDate.getFullYear(),
+					baseDate.getMonth(),
+					baseDate.getDate(),
+					timeDate.getHours(),
+					timeDate.getMinutes(),
+					timeDate.getSeconds(),
+					timeDate.getMilliseconds()
+				);
+			} else {
+				// Just date, use current time
+				const now = new Date();
+				finalDate = new Date(
+					baseDate.getFullYear(),
+					baseDate.getMonth(),
+					baseDate.getDate(),
+					now.getHours(),
+					now.getMinutes(),
+					now.getSeconds(),
+					now.getMilliseconds()
+				);
+			}
+
+			finalTimestamp = finalDate.toISOString();
 		}
 
 		setIsSubmittingLog(true);
@@ -117,18 +162,19 @@ export const LogActivityBar = memo(function LogActivityBar({
 				cleanText || trimmed,
 				logTag,
 				null,
-				logParsedTime?.isoString ?? null,
+				finalTimestamp,
 				source,
 			);
 			setLogText("");
 			setLogTag(null);
 			setLogParsedTime(null);
+			setLogParsedDate(null);
 			setLogMentionQuery(null);
 		} finally {
 			setIsSubmittingLog(false);
 			logInputRef.current?.focus();
 		}
-	}, [logText, logTag, logParsedTime, onAddLoggedActivity, isSubmittingLog, source]);
+	}, [logText, logTag, logParsedTime, logParsedDate, onAddLoggedActivity, isSubmittingLog, source]);
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -148,6 +194,7 @@ export const LogActivityBar = memo(function LogActivityBar({
 			if (e.key === "Escape") {
 				setLogMentionQuery(null);
 				setLogParsedTime(null);
+				setLogParsedDate(null);
 			}
 		},
 		[handleSubmit, handleSelectMention, logMentionQuery],
@@ -204,6 +251,21 @@ export const LogActivityBar = memo(function LogActivityBar({
 					</button>
 				)}
 
+				{logParsedDate && (
+					<button
+						type="button"
+						onClick={handleRemoveDate}
+						className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 flex-shrink-0 hover:bg-destructive/10 hover:text-destructive transition-colors group"
+						title="Remove date"
+					>
+						<span>📅</span>
+						<span>{logParsedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })}</span>
+						<span className="opacity-0 group-hover:opacity-100 transition-opacity ml-0.5">
+							×
+						</span>
+					</button>
+				)}
+
 				{logParsedTime && (
 					<button
 						type="button"
@@ -225,7 +287,7 @@ export const LogActivityBar = memo(function LogActivityBar({
 					value={logText}
 					onChange={handleTextChange}
 					onKeyDown={handleKeyDown}
-					placeholder="Log an activity. Use # to tag, @time to set time..."
+					placeholder="Log an activity. Use # to tag, @date @time..."
 					className="flex-1 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground text-sm"
 					disabled={isSubmittingLog}
 				/>

@@ -1,5 +1,57 @@
 import { Sunrise, CloudSun, Moon } from "lucide-react";
 
+export function parseAtDate(text: string): Date | null {
+	const now = new Date();
+
+	// @yesterday
+	if (/@yesterday(?=\s|$)/i.test(text)) {
+		const result = new Date(now);
+		result.setDate(result.getDate() - 1);
+		return result;
+	}
+
+	// @<N>dago — e.g. @2dago, @3dago
+	const daysAgoMatch = text.match(/@(\d+)dago(?=\s|$)/i);
+	if (daysAgoMatch) {
+		const days = parseInt(daysAgoMatch[1], 10);
+		const result = new Date(now);
+		result.setDate(result.getDate() - days);
+		return result;
+	}
+
+	// @DD/MM or @DD/MM/YY
+	const dateMatch = text.match(/@(\d{1,2})\/(\d{1,2})(?:\/(\d{2}))?(?=\s|$)/i);
+	if (dateMatch) {
+		const day = parseInt(dateMatch[1], 10);
+		const month = parseInt(dateMatch[2], 10) - 1; // 0-indexed
+		let year = dateMatch[3] ? 2000 + parseInt(dateMatch[3], 10) : now.getFullYear();
+
+		// Validate day and month
+		if (day < 1 || day > 31 || month < 0 || month > 11) return null;
+
+		// Create date with specified day/month/year
+		let result = new Date(year, month, day);
+
+		// If no year specified and date is in future, assume it's in the past
+		if (!dateMatch[3] && result > now) {
+			result.setFullYear(result.getFullYear() - 1);
+		}
+
+		return result;
+	}
+
+	return null;
+}
+
+export function stripAtDate(text: string): string {
+	return text
+		.replace(/@yesterday(?=\s|$)/gi, "")
+		.replace(/@\d+dago(?=\s|$)/gi, "")
+		.replace(/@\d{1,2}\/\d{1,2}(?:\/\d{2})?(?=\s|$)/gi, "")
+		.replace(/\s{2,}/g, " ")
+		.trim();
+}
+
 export function parseAtTime(
 	text: string,
 ): { isoString: string; display: string } | null {
@@ -69,8 +121,8 @@ export function parseAtTime(
 	const minutes = parseInt(match[2] ?? match[3] ?? match[4] ?? "0", 10);
 	const meridiem = (match[5] ?? "").toLowerCase();
 	const rawToken = match[0].toLowerCase();
-	const hasPm = rawToken.includes("pm") || meridiem === "pm";
-	const hasAm = rawToken.includes("am") || meridiem === "am";
+	const hasPm = meridiem === "pm" || rawToken.includes("pm");
+	const hasAm = meridiem === "am" || rawToken.includes("am");
 
 	if (hasPm && hours !== 12) hours += 12;
 	if (hasAm && hours === 12) hours = 0;

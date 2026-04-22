@@ -46,7 +46,7 @@ export function PageCarouselStripes({
 	return (
 		<div
 			ref={containerRef}
-			className="h-12 flex items-center justify-start pl-4"
+			className="h-12 flex items-center justify-start pl-6"
 			onTouchStart={handleTouchStart}
 			onTouchMove={handleTouchMove}
 			onTouchEnd={handleTouchEnd}
