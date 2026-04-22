@@ -23,6 +23,7 @@ import type { TagId } from "@/lib/tags";
 import { TaskRow } from "./task-row";
 import { playCompletionSound } from "./play-completion-sound";
 import type { TaskListProps } from "./task-list-types";
+import { PageCarouselStripes } from "./page-carousel-stripes";
 
 /**
  * Virtualized task list with drag-drop reordering, filtering, and optimistic UI.
@@ -51,6 +52,9 @@ export function TaskList({
 	onMoveTask,
 	onUpdateDueDate,
 	onUpdateText,
+	currentPage = 1,
+	totalPages = 1,
+	onPageChange,
 }: TaskListProps) {
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -407,6 +411,15 @@ export function TaskList({
 					</DragOverlay>
 				</DndContext>
 			</div>
+			{onPageChange && (
+				<div className="sm:hidden">
+					<PageCarouselStripes
+						currentPage={currentPage}
+						totalPages={totalPages}
+						onPageChange={onPageChange}
+					/>
+				</div>
+			)}
 		</div>
 	);
 }

@@ -2138,6 +2138,9 @@ export function AutofocusApp() {
 							onUpdateText={(taskId, text) =>
 								handleUpdateTaskText(taskId, text, false)
 							}
+							currentPage={effectiveCurrentPage}
+							totalPages={effectiveTotalPages}
+							onPageChange={handlePageChange}
 						/>
 					))}
 				{activeView === "completed" && (

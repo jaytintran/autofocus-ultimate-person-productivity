@@ -29,6 +29,9 @@ export interface TaskListProps {
 	onMoveTask: (taskId: string, toPamphletId: string) => void;
 	onUpdateDueDate: (taskId: string, dueDate: string | null) => Promise<void>;
 	onUpdateText?: (taskId: string, text: string) => Promise<void>;
+	currentPage?: number;
+	totalPages?: number;
+	onPageChange?: (page: number) => void;
 }
 
 export interface TaskRowProps {

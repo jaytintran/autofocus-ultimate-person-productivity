@@ -292,13 +292,21 @@ export const TaskRow = memo(function TaskRow({
 					transition-colors overflow-hidden
 				`}
 				onContextMenu={handleContextMenu}
-				{...(isMobile && !isWorking && !isEditing && !disabled ? attributes : {})}
+				{...(isMobile && !isWorking && !isEditing && !disabled
+					? attributes
+					: {})}
 				onTouchStart={(e) => {
 					if (!isDragging) {
 						lpStart(e);
 						if (isMobile && !shouldDisableSwipe) onTouchStart(e);
 						// Apply drag listeners on mobile
-						if (isMobile && !isWorking && !isEditing && !disabled && listeners?.onTouchStart) {
+						if (
+							isMobile &&
+							!isWorking &&
+							!isEditing &&
+							!disabled &&
+							listeners?.onTouchStart
+						) {
 							listeners.onTouchStart(e as any);
 						}
 					}
@@ -370,7 +378,7 @@ export const TaskRow = memo(function TaskRow({
 						) : (
 							<span
 								onClick={handleTextClick}
-								className={`min-w-0 w-full cursor-text text-sm sm:text-base truncate ${isWorking ? "text-[#ddd4b8]" : ""}`}
+								className={`min-w-0 w-full cursor-text text-sm truncate ${isWorking ? "text-[#ddd4b8]" : ""}`}
 							>
 								{task.text}
 							</span>
