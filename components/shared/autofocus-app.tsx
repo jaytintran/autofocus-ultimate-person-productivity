@@ -1217,17 +1217,17 @@ export function AutofocusApp() {
 	const handleUpdateWorkingTaskDueDate = useCallback(
 		async (taskId: string, dueDate: string | null) => {
 			await updateTask(taskId, { due_date: dueDate });
-			await mutateAllActive();
+			await Promise.all([mutateAllActive(), mutateActive()]);
 		},
-		[mutateAllActive],
+		[mutateAllActive, mutateActive],
 	);
 
 	const handleUpdateWorkingTaskTag = useCallback(
 		async (taskId: string, tag: TagId | null) => {
 			await updateTaskTag(taskId, tag);
-			await mutateAllActive();
+			await Promise.all([mutateAllActive(), mutateActive()]);
 		},
-		[mutateAllActive],
+		[mutateAllActive, mutateActive],
 	);
 
 	const handleCompleteAdjacentTask = useCallback(
@@ -2138,9 +2138,6 @@ export function AutofocusApp() {
 							onUpdateText={(taskId, text) =>
 								handleUpdateTaskText(taskId, text, false)
 							}
-							currentPage={effectiveCurrentPage}
-							totalPages={effectiveTotalPages}
-							onPageChange={handlePageChange}
 						/>
 					))}
 				{activeView === "completed" && (
