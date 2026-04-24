@@ -98,6 +98,7 @@ import { invalidatePamphletCache } from "@/lib/db/pamphlet-cache";
 import { usePamphlets } from "@/hooks/data/use-pamphlets";
 import { useDebouncedValue } from "@/hooks/state/use-debounced-value";
 import { useHabits } from "@/hooks/data/use-habits";
+import { useViewPreferences } from "@/hooks/state/use-view-preferences";
 import { HabitGrid } from "@/components/views/habits/habit-grid";
 import { createClient } from "@/lib/supabase/client";
 import { ScheduleView } from "../views/schedule/schedule-view";
@@ -211,10 +212,16 @@ export function AutofocusApp() {
 	const [selectedTags, setSelectedTags] = useState<Set<TagId | "none">>(
 		new Set(),
 	);
-	const [contentFilter, setContentFilter] = useState<ContentFilterState>({
-		options: [],
-		preset: "show-all",
-	});
+	const {
+		completedSort,
+		completedViewType,
+		contentFilter,
+		buJoWidth,
+		setCompletedSort,
+		setCompletedViewType,
+		setContentFilter,
+		setBuJoWidth,
+	} = useViewPreferences();
 	const [searchQuery, setSearchQuery] = useState("");
 	const debouncedSearchQuery = useDebouncedValue(searchQuery, 2500);
 
@@ -233,10 +240,6 @@ export function AutofocusApp() {
 	const [allCompletedTasks, setAllCompletedTasks] = useState<Task[]>([]);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
 	const [hasMoreCompleted, setHasMoreCompleted] = useState(true);
-	const [completedSort, setCompletedSort] =
-		useState<CompletedSortKey>("default");
-	const [completedViewType, setCompletedViewType] =
-		useState<CompletedViewType>("bullet");
 
 	const [completedSearch, setCompletedSearch] = useState("");
 	const debouncedCompletedSearch = useDebouncedValue(completedSearch, 200);
@@ -1947,8 +1950,6 @@ export function AutofocusApp() {
 			currentCapacity === capacity ? currentCapacity : capacity,
 		);
 	}, []);
-
-	const [buJoWidth, setBuJoWidth] = useState<"full" | "narrow">("full");
 
 	// -------------------------------------------------------------------------
 	// Callbacks - Schedule

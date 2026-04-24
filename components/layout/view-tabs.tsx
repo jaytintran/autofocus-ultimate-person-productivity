@@ -339,6 +339,123 @@ function MobileViewTypeToggle({ value, onChange }: ViewTypeToggleProps) {
 }
 
 // =============================================================================
+// DESKTOP PREFERENCES POPOVER (Completed View)
+// =============================================================================
+
+interface DesktopPreferencesPopoverProps {
+	activeFilterCount: number;
+	completedSort: CompletedSortKey;
+	onCompletedSortChange: (sort: CompletedSortKey) => void;
+	completedViewType: CompletedViewType;
+	onCompletedViewTypeChange: (view: CompletedViewType) => void;
+	contentFilter: ContentFilterState;
+	onChangeContentFilter: (filter: ContentFilterState) => void;
+	selectedTags: Set<TagId | "none">;
+	onToggleTag: (tag: TagId | "none" | "all") => void;
+}
+
+function DesktopPreferencesPopover({
+	activeFilterCount,
+	completedSort,
+	onCompletedSortChange,
+	completedViewType,
+	onCompletedViewTypeChange,
+	contentFilter,
+	onChangeContentFilter,
+	selectedTags,
+	onToggleTag,
+}: DesktopPreferencesPopoverProps) {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-8 gap-2 relative"
+				>
+					<SlidersHorizontal className="w-4 h-4" />
+					<span>Preferences</span>
+					{activeFilterCount > 0 && (
+						<Badge
+							variant="secondary"
+							className="absolute -top-2 -right-2 h-3.5 w-3.5 p-0 flex items-center justify-center text-xs bg-[#8b9a6b] text-white border-0"
+						>
+							{activeFilterCount}
+						</Badge>
+					)}
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent className="w-80 p-4" align="end">
+				<div className="space-y-6">
+					{/* View Type Section */}
+					<div className="space-y-3">
+						<h4 className="text-sm font-medium text-muted-foreground">View Style</h4>
+						<div className="grid grid-cols-3 gap-2">
+							{[
+								{ key: "bullet" as const, label: "Bullet", icon: BookOpen },
+								{ key: "default" as const, label: "List", icon: LayoutList },
+								{ key: "7days" as const, label: "7 Days", icon: CalendarDays },
+							].map((option) => {
+								const Icon = option.icon;
+								return (
+									<button
+										key={option.key}
+										onClick={() => onCompletedViewTypeChange(option.key)}
+										className={`flex flex-col items-center gap-1 px-2 py-2 text-xs rounded-lg border transition-all ${
+											completedViewType === option.key
+												? "border-[#8b9a6b] bg-[#8b9a6b]/10 text-foreground"
+												: "border-border hover:border-foreground/30 text-muted-foreground"
+										}`}
+									>
+										<Icon className="w-4 h-4" />
+										<span className="font-medium">{option.label}</span>
+									</button>
+								);
+							})}
+						</div>
+					</div>
+
+					{/* Sort Section */}
+					<div className="space-y-3">
+						<h4 className="text-sm font-medium text-muted-foreground">Sort Order</h4>
+						<div className="grid grid-cols-2 gap-2">
+							{SORT_OPTIONS.map((option) => {
+								const Icon = option.icon;
+								return (
+									<button
+										key={option.key}
+										onClick={() => onCompletedSortChange(option.key)}
+										className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-all ${
+											completedSort === option.key
+												? "border-[#8b9a6b] bg-[#8b9a6b]/10 text-foreground"
+												: "border-border hover:border-foreground/30 text-muted-foreground"
+										}`}
+									>
+										<Icon className="w-4 h-4" />
+										<span>{option.label}</span>
+									</button>
+								);
+							})}
+						</div>
+					</div>
+
+					{/* Content Filter and Tags on same row */}
+					<div className="flex flex-row gap-3">
+						<ContentFilterBar
+							value={contentFilter}
+							onChange={onChangeContentFilter}
+						/>
+						<TagFilter selectedTags={selectedTags} onToggleTag={onToggleTag} />
+					</div>
+				</div>
+			</PopoverContent>
+		</Popover>
+	);
+}
+
+// =============================================================================
 // MAIN VIEW TOGGLE (Tasks / Completed)
 // =============================================================================
 
@@ -431,19 +548,9 @@ export function ViewTabs({
 
 	return (
 		<div className="relative flex flex-row flex-wrap gap-2 justify-between items-center px-4 py-3">
-			{/* Left side - Main view toggle and search */}
+			{/* Left side - Main view toggle */}
 			<div className="flex gap-2 flex-wrap items-center">
 				<MainViewToggle activeView={activeView} onChange={onViewChange} />
-
-				{/* Desktop: Show view type toggle inline */}
-				{activeView === "completed" && (
-					<ViewTypeToggle
-						value={completedViewType}
-						onChange={onCompletedViewTypeChange}
-						buJoWidth={buJoWidth}
-						onBuJoWidthChange={onBuJoWidthChange}
-					/>
-				)}
 			</div>
 
 			{/* Right side - Filters */}
@@ -477,6 +584,23 @@ export function ViewTabs({
 					</div>
 				)}
 
+				{/* Narrow/Full width toggle - visible on desktop when bullet view is active */}
+				{activeView === "completed" && completedViewType === "bullet" && (
+					<button
+						onClick={() =>
+							onBuJoWidthChange(buJoWidth === "full" ? "narrow" : "full")
+						}
+						className="hidden md:flex px-2 py-1.5 rounded-md text-xs transition-all duration-200 text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 h-8 items-center"
+						title={buJoWidth === "full" ? "Narrow view" : "Full width"}
+					>
+						{buJoWidth === "full" ? (
+							<PanelRightClose className="w-3.5 h-3.5" />
+						) : (
+							<PanelRightOpen className="w-3.5 h-3.5" />
+						)}
+					</button>
+				)}
+
 				{/* MOBILE: Everything in Sheet */}
 				<MobileFilterSheet activeFilterCount={activeFilterCount}>
 					{/* Content Filter */}
@@ -507,25 +631,29 @@ export function ViewTabs({
 					)}
 				</MobileFilterSheet>
 
-				{/* DESKTOP: Show filters inline */}
+				{/* DESKTOP: Show filters inline for tasks, preferences popover for completed */}
 				<div className="hidden md:flex items-center gap-2">
 					{activeView === "tasks" && (
-						<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
-					)}
-
-					<ContentFilterBar
-						value={contentFilter}
-						onChange={onChangeContentFilter}
-					/>
-
-					{activeView === "completed" && (
-						<TagFilter selectedTags={selectedTags} onToggleTag={onToggleTag} />
+						<>
+							<BacklogDump onAddTasks={onAddTasks} selectedTags={selectedTags} />
+							<ContentFilterBar
+								value={contentFilter}
+								onChange={onChangeContentFilter}
+							/>
+						</>
 					)}
 
 					{activeView === "completed" && (
-						<SortSelector
-							value={completedSort}
-							onChange={onCompletedSortChange}
+						<DesktopPreferencesPopover
+							activeFilterCount={activeFilterCount}
+							completedSort={completedSort}
+							onCompletedSortChange={onCompletedSortChange}
+							completedViewType={completedViewType}
+							onCompletedViewTypeChange={onCompletedViewTypeChange}
+							contentFilter={contentFilter}
+							onChangeContentFilter={onChangeContentFilter}
+							selectedTags={selectedTags}
+							onToggleTag={onToggleTag}
 						/>
 					)}
 				</div>
