@@ -15,6 +15,7 @@ import {
 	ClipboardList,
 	Trophy,
 	CheckCheck,
+	TimerReset,
 } from "lucide-react";
 import type { Task, AppState, Pamphlet } from "@/lib/types";
 import { TAG_DEFINITIONS, getTagDefinition, type TagId } from "@/lib/tags";
@@ -73,6 +74,7 @@ interface TimerBarProps {
 		taskId: string | null,
 		text: string,
 	) => Promise<void>;
+	onResetTime: (taskId: string) => Promise<void>;
 }
 
 // =============================================================================
@@ -543,9 +545,11 @@ export function TimerBar({
 	onUpdateDueDate,
 	onUpdateTaskTag,
 	onCompleteAdjacentTask,
+	onResetTime,
 }: TimerBarProps) {
 	const [isReentering, setIsReentering] = useState(false);
 	const [isClosing, setIsClosing] = useState(false);
+	const [showResetConfirm, setShowResetConfirm] = useState(false);
 
 	// ── Optimistic working task state ──────────────────────────────────────────
 	// Immediately clear working task on re-enter to prevent double-clicks while
@@ -751,6 +755,28 @@ export function TimerBar({
 		if (!effectiveWorkingTask) return;
 		await onCancelTask(effectiveWorkingTask, sessionMs);
 	}, [effectiveWorkingTask, sessionMs, onCancelTask]);
+
+	const handleResetTime = useCallback(async () => {
+		if (!effectiveWorkingTask) return;
+
+		// If timer is running or paused, stop it first and add session to total
+		if (timerState === "running" || timerState === "paused") {
+			await onStopTimer(effectiveWorkingTask, sessionMs);
+		}
+
+		// Show confirmation dialog
+		setShowResetConfirm(true);
+	}, [effectiveWorkingTask, sessionMs, timerState, onStopTimer]);
+
+	const handleConfirmReset = useCallback(async () => {
+		if (!effectiveWorkingTask) return;
+		setShowResetConfirm(false);
+		await onResetTime(effectiveWorkingTask.id);
+	}, [effectiveWorkingTask, onResetTime]);
+
+	const handleCancelReset = useCallback(() => {
+		setShowResetConfirm(false);
+	}, []);
 
 	const handleSidequestChange = useCallback(
 		(value: string) => {
@@ -977,6 +1003,15 @@ export function TimerBar({
 									>
 										<Check className="h-4 w-4 text-[#8b9a6b]" />
 									</button>
+									{effectiveWorkingTask.total_time_ms > 0 && (
+										<button
+											onClick={handleResetTime}
+											className={`${secondaryBtn} md:hidden`}
+											title="Reset time"
+										>
+											<TimerReset className="h-4 w-4" />
+										</button>
+									)}
 									{/* Desktop: icon + text */}
 									<button
 										onClick={handleStartTimer}
@@ -992,6 +1027,16 @@ export function TimerBar({
 										<Check className="h-3.5 w-3.5 text-[#8b9a6b]" />
 										Complete
 									</button>
+									{effectiveWorkingTask.total_time_ms > 0 && (
+										<button
+											onClick={handleResetTime}
+											className={`${secondaryBtn} hidden md:inline-flex`}
+											title="Reset time"
+										>
+											<TimerReset className="h-3.5 w-3.5" />
+											Reset Timer
+										</button>
+									)}
 								</>
 							)}
 							{isRunning && (
@@ -1017,6 +1062,15 @@ export function TimerBar({
 									>
 										<Check className="h-4 w-4" />
 									</button>
+									{effectiveWorkingTask.total_time_ms > 0 && (
+										<button
+											onClick={handleResetTime}
+											className={`${secondaryBtn} md:hidden`}
+											title="Reset time"
+										>
+											<TimerReset className="h-4 w-4" />
+										</button>
+									)}
 									<button
 										onClick={handlePause}
 										className={`${secondaryBtn} hidden md:inline-flex`}
@@ -1038,6 +1092,16 @@ export function TimerBar({
 										<Check className="h-3.5 w-3.5" />
 										Complete
 									</button>
+									{effectiveWorkingTask.total_time_ms > 0 && (
+										<button
+											onClick={handleResetTime}
+											className={`${secondaryBtn} hidden md:inline-flex`}
+											title="Reset time"
+										>
+											<TimerReset className="h-3.5 w-3.5" />
+											Reset Timer
+										</button>
+									)}
 								</>
 							)}
 							{isPaused && (
@@ -1063,6 +1127,15 @@ export function TimerBar({
 									>
 										<Check className="h-4 w-4 text-[#8b9a6b]" />
 									</button>
+									{effectiveWorkingTask.total_time_ms > 0 && (
+										<button
+											onClick={handleResetTime}
+											className={`${secondaryBtn} md:hidden`}
+											title="Reset time"
+										>
+											<TimerReset className="h-4 w-4" />
+										</button>
+									)}
 									<button
 										onClick={handleResume}
 										className={`${primaryBtn} hidden md:inline-flex`}
@@ -1084,6 +1157,16 @@ export function TimerBar({
 										<Check className="h-3.5 w-3.5 text-[#8b9a6b]" />
 										Complete
 									</button>
+									{effectiveWorkingTask.total_time_ms > 0 && (
+										<button
+											onClick={handleResetTime}
+											className={`${secondaryBtn} hidden md:inline-flex`}
+											title="Reset time"
+										>
+											<TimerReset className="h-3.5 w-3.5" />
+											Reset Timer
+										</button>
+									)}
 								</>
 							)}
 							{isStopped && (
@@ -1112,6 +1195,15 @@ export function TimerBar({
 											className={`h-4 w-4 ${isReentering ? "animate-spin" : ""}`}
 										/>
 									</button>
+									{effectiveWorkingTask.total_time_ms > 0 && (
+										<button
+											onClick={handleResetTime}
+											className={`${secondaryBtn} md:hidden`}
+											title="Reset time"
+										>
+											<TimerReset className="h-4 w-4" />
+										</button>
+									)}
 									<button
 										onClick={handleStartTimer}
 										className={`${secondaryBtn} hidden md:inline-flex`}
@@ -1136,6 +1228,15 @@ export function TimerBar({
 										/>
 										Re-enter
 									</button>
+									{effectiveWorkingTask.total_time_ms > 0 && (
+										<button
+											onClick={handleResetTime}
+											className={`${secondaryBtn} hidden md:inline-flex`}
+											title="Reset time"
+										>
+											<TimerReset className="h-3.5 w-3.5" />
+										</button>
+									)}
 								</>
 							)}
 						</div>
@@ -1393,6 +1494,36 @@ export function TimerBar({
 					</div>
 				</div>
 			</div>
+
+			{/* Reset Time Confirmation Dialog */}
+			{showResetConfirm && effectiveWorkingTask && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+					<div className="bg-background border border-border rounded-lg shadow-xl p-6 max-w-sm mx-4">
+						<h3 className="text-lg font-semibold mb-2">Reset logged time?</h3>
+						<p className="text-sm text-muted-foreground mb-4">
+							This will clear{" "}
+							<span className="font-medium text-foreground">
+								{formatTimeCompact(effectiveWorkingTask.total_time_ms)}
+							</span>{" "}
+							of logged time. This action cannot be undone.
+						</p>
+						<div className="flex gap-2 justify-end">
+							<button
+								onClick={handleCancelReset}
+								className="px-4 py-2 text-sm rounded-lg border border-border hover:bg-accent transition-colors"
+							>
+								Cancel
+							</button>
+							<button
+								onClick={handleConfirmReset}
+								className="px-4 py-2 text-sm rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+							>
+								Reset
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

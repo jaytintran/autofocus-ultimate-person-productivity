@@ -1256,6 +1256,38 @@ export function AutofocusApp() {
 		[mutateActive],
 	);
 
+	const handleResetTime = useCallback(
+		async (taskId: string) => {
+			if (!displayedAppState) return;
+
+			const now = new Date().toISOString();
+			const optimisticActiveTasks = displayedActiveTasks.map((task) =>
+				task.id === taskId
+					? { ...task, total_time_ms: 0, updated_at: now }
+					: task,
+			);
+
+			await runOptimisticUpdate(
+				{
+					activeTasks: optimisticActiveTasks,
+					completedTasks: displayedCompletedTasks,
+					appState: displayedAppState,
+					totalPages: displayedTotalPages,
+				},
+				async () => {
+					await updateTask(taskId, { total_time_ms: 0 });
+				},
+			);
+		},
+		[
+			displayedActiveTasks,
+			displayedAppState,
+			displayedCompletedTasks,
+			displayedTotalPages,
+			runOptimisticUpdate,
+		],
+	);
+
 	// -------------------------------------------------------------------------
 	// Callbacks - Timer Operations
 	// -------------------------------------------------------------------------
@@ -2037,6 +2069,7 @@ export function AutofocusApp() {
 				onUpdateDueDate={handleUpdateWorkingTaskDueDate}
 				onUpdateTaskTag={handleUpdateWorkingTaskTag}
 				onCompleteAdjacentTask={handleCompleteAdjacentTask}
+				onResetTime={handleResetTime}
 			/>
 
 			<ViewTabs
