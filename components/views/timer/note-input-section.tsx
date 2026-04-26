@@ -64,49 +64,48 @@ export function NoteInputSection({
 	onDelete,
 }: NoteInputSectionProps) {
 	return (
-		<div className="flex flex-col gap-3 md:border-l md:border-border/50 md:pl-6">
-			{/* Mobile toggler — own row */}
-			<div className="flex md:hidden items-center gap-1.5 w-full">
+		<div className="flex flex-col gap-3 md:border-l md:border-border/50 md:pl-6 mt-2 md:mt-0">
+			{/* Input row — mobile cycling button + input + send, desktop toggler + input + send */}
+			<div className="flex items-center gap-2">
+				{/* Mobile: Single cycling button */}
 				<button
 					type="button"
-					onClick={() => setNoteType("log")}
-					className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+					onClick={() => {
+						const types: Array<"log" | "achievement" | "sidequest"> = [
+							"log",
+							"achievement",
+							"sidequest",
+						];
+						const currentIndex = types.indexOf(noteType);
+						const nextIndex = (currentIndex + 1) % types.length;
+						setNoteType(types[nextIndex]);
+					}}
+					className={`md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors flex-shrink-0 ${
 						noteType === "log"
 							? "border-[#8b9a6b]/40 bg-[#8b9a6b]/10 text-[#8b9a6b]"
-							: "border-border text-muted-foreground/50"
+							: noteType === "achievement"
+								? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+								: "border-sky-500/40 bg-sky-500/10 text-sky-500"
 					}`}
 				>
-					<ClipboardList className="w-3.5 h-3.5" />
-					Log
+					{noteType === "log" ? (
+						<>
+							<ClipboardList className="w-3.5 h-3.5" />
+							Log
+						</>
+					) : noteType === "achievement" ? (
+						<>
+							<Trophy className="w-3.5 h-3.5" />
+							Win
+						</>
+					) : (
+						<>
+							<CheckCheck className="w-3.5 h-3.5" />
+							Side Quest
+						</>
+					)}
 				</button>
-				<button
-					type="button"
-					onClick={() => setNoteType("achievement")}
-					className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-						noteType === "achievement"
-							? "border-amber-500/40 bg-amber-500/10 text-amber-500"
-							: "border-border text-muted-foreground/50"
-					}`}
-				>
-					<Trophy className="w-3.5 h-3.5" />
-					Win
-				</button>
-				<button
-					type="button"
-					onClick={() => setNoteType("sidequest")}
-					className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-						noteType === "sidequest"
-							? "border-sky-500/40 bg-sky-500/10 text-sky-500"
-							: "border-border text-muted-foreground/50"
-					}`}
-				>
-					<CheckCheck className="w-3.5 h-3.5" />
-					Side Quest
-				</button>
-			</div>
 
-			{/* Input row — desktop toggler + input + send */}
-			<div className="flex items-center gap-2">
 				{/* Desktop toggler only */}
 				<div className="hidden md:flex items-center gap-0.5 rounded-md border border-border p-1 flex-shrink-0">
 					<button
@@ -168,7 +167,7 @@ export function NoteInputSection({
 							}}
 							placeholder="What did you knock off?"
 							disabled={sidequestSubmitting}
-							className="w-full bg-transparent border-none outline-none text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:text-foreground transition-colors"
+							className="w-full bg-transparent border border-sky-500/40 rounded-lg px-3 py-1.5 outline-none text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:text-foreground transition-colors md:border-none md:px-0 md:py-0"
 						/>
 						{sidequestMatches.length > 0 && (
 							<div className="absolute bottom-full mb-2 left-0 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50 w-72">
@@ -216,7 +215,11 @@ export function NoteInputSection({
 									? "Log a note, hit Enter..."
 									: "What did you achieve?"
 							}
-							className="flex-1 bg-transparent border-none outline-none text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:text-foreground transition-colors"
+							className={`w-full bg-transparent border rounded-lg px-3 py-1.5 outline-none text-xs text-muted-foreground placeholder:text-muted-foreground/40 focus:text-foreground transition-colors md:border-none md:px-0 md:py-0 ${
+								noteType === "log"
+									? "border-[#8b9a6b]/40"
+									: "border-amber-500/40"
+							}`}
 						/>
 					</div>
 				)}

@@ -7,9 +7,10 @@ import {
 	Check,
 	RefreshCw,
 	TimerReset,
+	X,
 } from "lucide-react";
 import type { Task } from "@/lib/types";
-import { primaryBtn, secondaryBtn } from "./timer-bar.utils";
+import { primaryBtn, secondaryBtn, cancelBtn } from "./timer-bar.utils";
 
 interface TimerActionButtonsProps {
 	timerState: "idle" | "running" | "paused" | "stopped";
@@ -22,13 +23,14 @@ interface TimerActionButtonsProps {
 	onComplete: () => void;
 	onReenter: () => void;
 	onResetTime: () => void;
+	onCancelTask: () => void;
 }
 
 interface ButtonConfig {
 	icon: React.ComponentType<{ className?: string }>;
 	label: string;
 	onClick: () => void;
-	variant: "primary" | "secondary";
+	variant: "primary" | "secondary" | "cancel";
 	title?: string;
 	disabled?: boolean;
 	className?: string;
@@ -45,6 +47,7 @@ export function TimerActionButtons({
 	onComplete,
 	onReenter,
 	onResetTime,
+	onCancelTask,
 }: TimerActionButtonsProps) {
 	// Define button configurations for each state
 	const buttonConfigs: Record<string, ButtonConfig[]> = {
@@ -75,6 +78,13 @@ export function TimerActionButtons({
 						},
 					]
 				: []),
+			{
+				icon: X,
+				label: "Cancel",
+				onClick: onCancelTask,
+				variant: "cancel",
+				title: "Cancel task",
+			},
 		],
 		running: [
 			{
@@ -109,6 +119,13 @@ export function TimerActionButtons({
 						},
 					]
 				: []),
+			{
+				icon: X,
+				label: "Cancel",
+				onClick: onCancelTask,
+				variant: "cancel",
+				title: "Cancel task",
+			},
 		],
 		paused: [
 			{
@@ -144,6 +161,13 @@ export function TimerActionButtons({
 						},
 					]
 				: []),
+			{
+				icon: X,
+				label: "Cancel",
+				onClick: onCancelTask,
+				variant: "cancel",
+				title: "Cancel task",
+			},
 		],
 		stopped: [
 			{
@@ -180,6 +204,13 @@ export function TimerActionButtons({
 						},
 					]
 				: []),
+			{
+				icon: X,
+				label: "Cancel",
+				onClick: onCancelTask,
+				variant: "cancel",
+				title: "Cancel task",
+			},
 		],
 	};
 
@@ -189,7 +220,12 @@ export function TimerActionButtons({
 		<div className="flex items-center gap-1.5">
 			{buttons.map((btn, index) => {
 				const Icon = btn.icon;
-				const btnClass = btn.variant === "primary" ? primaryBtn : secondaryBtn;
+				const btnClass =
+					btn.variant === "primary"
+						? primaryBtn
+						: btn.variant === "cancel"
+							? cancelBtn
+							: secondaryBtn;
 
 				return (
 					<div key={index}>

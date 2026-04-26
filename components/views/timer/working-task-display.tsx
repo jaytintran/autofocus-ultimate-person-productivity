@@ -56,18 +56,11 @@ export function WorkingTaskDisplay({
 
 	return (
 		<div className="flex flex-col gap-3">
-			{/* Title + X */}
-			<div className="flex items-start justify-between gap-3">
+			{/* Title */}
+			<div className="flex items-start gap-3">
 				<p className="text-base font-semibold tracking-tight text-foreground md:text-2xl md:tracking-[0.04em]">
 					{effectiveWorkingTask.text}
 				</p>
-				<button
-					onClick={onCancelTask}
-					className={iconBtn}
-					title="Remove from working panel"
-				>
-					<X className="h-4 w-4" />
-				</button>
 			</div>
 
 			{/* Badges row */}
@@ -148,6 +141,7 @@ export function WorkingTaskDisplay({
 					onComplete={onComplete}
 					onReenter={onReenter}
 					onResetTime={onResetTime}
+					onCancelTask={onCancelTask}
 				/>
 			</div>
 		</div>
