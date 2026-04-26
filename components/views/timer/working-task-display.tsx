@@ -58,7 +58,7 @@ export function WorkingTaskDisplay({
 		<div className="flex flex-col gap-3">
 			{/* Title + X */}
 			<div className="flex items-start justify-between gap-3">
-				<p className="truncate text-base font-semibold tracking-tight text-foreground md:text-3xl md:tracking-[0.04em]">
+				<p className="text-base font-semibold tracking-tight text-foreground md:text-2xl md:tracking-[0.04em]">
 					{effectiveWorkingTask.text}
 				</p>
 				<button
