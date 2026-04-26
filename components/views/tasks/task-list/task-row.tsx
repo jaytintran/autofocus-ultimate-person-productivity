@@ -364,7 +364,7 @@ export const TaskRow = memo(function TaskRow({
 									onKeyDown={handleKeyDown}
 									placeholder="Task text… or append !1d, !2h, !30m"
 									onClick={(e) => e.stopPropagation()}
-									className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-sm sm:text-base text-foreground resize-none w-full"
+									className="flex-1 bg-transparent border-b border-[#8b9a6b] outline-none py-0.5 text-sm text-foreground resize-none w-full"
 								/>
 								{(() => {
 									const { dueDate } = parseDueDateShortcut(editText);
